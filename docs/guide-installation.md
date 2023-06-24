@@ -1,6 +1,11 @@
 # Proxmox CE - Guide d'installation
 
 ## 🚧 Installation
+### Usefull programs
+- zip
+	```sh
+	sudo apt install zip
+	```
 
 
 ## 🛠 Tools
