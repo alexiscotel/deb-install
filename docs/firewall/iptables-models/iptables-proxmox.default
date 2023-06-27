@@ -1,0 +1,255 @@
+Chain INPUT (policy ACCEPT)
+target               prot                   opt       source                    destination
+
+PVEFW-INPUT          all                    --        anywhere                  anywhere
+
+
+Chain FORWARD (policy ACCEPT)
+target               prot                   opt       source                    destination
+
+PVEFW-FORWARD        all                    --        anywhere                  anywhere
+
+
+Chain OUTPUT (policy ACCEPT)
+target               prot                   opt       source                    destination
+
+PVEFW-OUTPUT         all                    --        anywhere                  anywhere
+
+
+Chain PVEFW-Drop (1 references)
+target               prot                   opt       source                    destination
+
+PVEFW-DropBroadcast  all                    --        anywhere                  anywhere
+
+ACCEPT               icmp                   --        anywhere                  anywhere                  icmp                                fragmentation-needed
+
+ACCEPT               icmp                   --        anywhere                  anywhere                  icmp                                time-exceeded
+
+DROP                 all                    --        anywhere                  anywhere                  ctstate                             INVALID
+
+DROP                 udp                    --        anywhere                  anywhere                  multiport                           dports                      135,445
+
+DROP                 udp                    --        anywhere                  anywhere                  udp                                 dpts:netbios-ns:139
+
+DROP                 udp                    --        anywhere                  anywhere                  udp                                 spt:netbios-ns              dpts:1024:65535
+
+DROP                 tcp                    --        anywhere                  anywhere                  multiport                           dports                      epmap,netbios-ssn,microsoft-ds
+
+DROP                 udp                    --        anywhere                  anywhere                  udp                                 dpt:1900
+
+DROP                 tcp                    --        anywhere                  anywhere                  tcp                                 flags:!FIN,SYN,RST,ACK/SYN
+
+DROP                 udp                    --        anywhere                  anywhere                  udp                                 spt:domain
+
+all                  --                     anywhere  anywhere                  /*                        PVESIG:83WlR/a4wLbmURFqMQT3uJSgIG8  */
+
+
+Chain PVEFW-DropBroadcast (2 references)
+target               prot                   opt       source                    destination
+
+DROP                 all                    --        anywhere                  anywhere                  ADDRTYPE                            match                       dst-type
+    BROADCAST
+DROP                 all                    --        anywhere                  anywhere                  ADDRTYPE                            match                       dst-type
+    MULTICAST
+DROP                 all                    --        anywhere                  anywhere                  ADDRTYPE                            match                       dst-type
+    ANYCAST
+DROP                 all                    --        anywhere                  base-address.mcast.net/4
+
+all                  --                     anywhere  anywhere                  /*                        PVESIG:NyjHNAtFbkH7WGLamPpdVnxHy4w  */
+
+
+Chain PVEFW-FORWARD (1 references)
+target               prot                   opt       source                    destination
+
+DROP                 all                    --        anywhere                  anywhere                  ctstate                             INVALID
+
+ACCEPT               all                    --        anywhere                  anywhere                  ctstate                             RELATED,ESTABLISHED
+
+PVEFW-FWBR-IN        all                    --        anywhere                  anywhere                  PHYSDEV                             match                       --physdev-in
+    fwln+                      --physdev-is-bridged
+PVEFW-FWBR-OUT       all                    --        anywhere                  anywhere                  PHYSDEV                             match                       --physdev-out
+    fwln+                      --physdev-is-bridged
+all                  --                     anywhere  anywhere                  /*                        PVESIG:qnNexOcGa+y+jebd4dAUqFSp5nw  */
+
+
+Chain PVEFW-FWBR-IN (1 references)
+target               prot                   opt       source                    destination
+
+PVEFW-smurfs         all                    --        anywhere                  anywhere                  ctstate                             INVALID,NEW
+
+all                  --                     anywhere  anywhere                  /*                        PVESIG:Ijl7/xz0DD7LF91MlLCz0ybZBE0  */
+
+
+Chain PVEFW-FWBR-OUT (1 references)
+target               prot                   opt       source                    destination
+
+all                  --                     anywhere  anywhere                  /*                        PVESIG:2jmj7l5rSw0yVb/vlWAYkK/YBwk  */
+
+
+Chain PVEFW-HOST-IN (1 references)
+target               prot                   opt       source                    destination
+
+ACCEPT               all                    --        anywhere                  anywhere
+
+DROP                 all                    --        anywhere                  anywhere                  ctstate                             INVALID
+
+ACCEPT               all                    --        anywhere                  anywhere                  ctstate                             RELATED,ESTABLISHED
+
+PVEFW-smurfs         all                    --        anywhere                  anywhere                  ctstate                             INVALID,NEW
+
+RETURN               igmp                   --        anywhere                  anywhere
+
+RETURN               tcp                    --        anywhere                  anywhere                  match-set                           PVEFW-0-management-v4       src
+    tcp                        dpt:8006
+RETURN               tcp                    --        anywhere                  anywhere                  match-set                           PVEFW-0-management-v4       src
+    tcp                        dpts:5900:5999
+RETURN               tcp                    --        anywhere                  anywhere                  match-set                           PVEFW-0-management-v4       src
+    tcp                        dpt:3128
+RETURN               tcp                    --        anywhere                  anywhere                  match-set                           PVEFW-0-management-v4       src
+    tcp                        dpt:ssh
+RETURN               tcp                    --        anywhere                  anywhere                  match-set                           PVEFW-0-management-v4       src
+    tcp                        dpts:60000:60050
+PVEFW-Drop           all                    --        anywhere                  anywhere
+
+DROP                 all                    --        anywhere                  anywhere
+
+all                  --                     anywhere  anywhere                  /*                        PVESIG:cucENGwfi+iPw5e/BS7lH7zNnU8  */
+
+
+Chain PVEFW-HOST-OUT (1 references)
+target               prot                   opt       source                    destination
+
+ACCEPT               all                    --        anywhere                  anywhere
+
+DROP                 all                    --        anywhere                  anywhere                  ctstate                             INVALID
+
+ACCEPT               all                    --        anywhere                  anywhere                  ctstate                             RELATED,ESTABLISHED
+
+RETURN               igmp                   --        anywhere                  anywhere
+
+RETURN               tcp                    --        anywhere                  10.10.200.0/24            tcp                                 dpt:8006
+
+RETURN               tcp                    --        anywhere                  10.10.200.0/24            tcp                                 dpt:ssh
+
+RETURN               tcp                    --        anywhere                  10.10.200.0/24            tcp                                 dpts:5900:5999
+
+RETURN               tcp                    --        anywhere                  10.10.200.0/24            tcp                                 dpt:3128
+
+RETURN               all                    --        anywhere                  anywhere
+
+all                  --                     anywhere  anywhere                  /*                        PVESIG:5LyXcUmMw7BCkgFXLUB/iBcjiPA  */
+
+
+Chain PVEFW-INPUT (1 references)
+target               prot                   opt       source                    destination
+
+PVEFW-HOST-IN        all                    --        anywhere                  anywhere
+
+all                  --                     anywhere  anywhere                  /*                        PVESIG:+5iMmLaxKXynOB/+5xibfx7WhFk  */
+
+
+Chain PVEFW-OUTPUT (1 references)
+target               prot                   opt       source                    destination
+
+PVEFW-HOST-OUT       all                    --        anywhere                  anywhere
+
+all                  --                     anywhere  anywhere                  /*                        PVESIG:LjHoZeSSiWAG3+2ZAyL/xuEehd0  */
+
+
+Chain PVEFW-Reject (0 references)
+target               prot                   opt       source                    destination
+
+PVEFW-DropBroadcast  all                    --        anywhere                  anywhere
+
+ACCEPT               icmp                   --        anywhere                  anywhere                  icmp                                fragmentation-needed
+
+ACCEPT               icmp                   --        anywhere                  anywhere                  icmp                                time-exceeded
+
+DROP                 all                    --        anywhere                  anywhere                  ctstate                             INVALID
+
+PVEFW-reject         udp                    --        anywhere                  anywhere                  multiport                           dports                      135,445
+
+PVEFW-reject         udp                    --        anywhere                  anywhere                  udp                                 dpts:netbios-ns:139
+
+PVEFW-reject         udp                    --        anywhere                  anywhere                  udp                                 spt:netbios-ns              dpts:1024:65535
+
+PVEFW-reject         tcp                    --        anywhere                  anywhere                  multiport                           dports                      epmap,netbios-ssn,microsoft-ds
+
+DROP                 udp                    --        anywhere                  anywhere                  udp                                 dpt:1900
+
+DROP                 tcp                    --        anywhere                  anywhere                  tcp                                 flags:!FIN,SYN,RST,ACK/SYN
+
+DROP                 udp                    --        anywhere                  anywhere                  udp                                 spt:domain
+
+all                  --                     anywhere  anywhere                  /*                        PVESIG:h3DyALVslgH5hutETfixGP08w7c  */
+
+
+Chain PVEFW-SET-ACCEPT-MARK (0 references)
+target               prot                   opt       source                    destination
+
+MARK                 all                    --        anywhere                  anywhere                  MARK                                or                          0x80000000
+
+all                  --                     anywhere  anywhere                  /*                        PVESIG:Hg/OIgIwJChBUcWU8Xnjhdd2jUY  */
+
+
+Chain PVEFW-logflags (5 references)
+target               prot                   opt       source                    destination
+
+DROP                 all                    --        anywhere                  anywhere
+
+all                  --                     anywhere  anywhere                  /*                        PVESIG:MN4PH1oPZeABMuWr64RrygPfW7A  */
+
+
+Chain PVEFW-reject (4 references)
+target               prot                   opt       source                    destination
+
+DROP                 all                    --        anywhere                  anywhere                  ADDRTYPE                            match                       dst-type
+    BROADCAST
+DROP                 all                    --        base-address.mcast.net/4  anywhere
+
+DROP                 icmp                   --        anywhere                  anywhere
+
+REJECT               tcp                    --        anywhere                  anywhere                  reject-with                         tcp-reset
+
+REJECT               udp                    --        anywhere                  anywhere                  reject-with                         icmp-port-unreachable
+
+REJECT               icmp                   --        anywhere                  anywhere                  reject-with                         icmp-host-unreachable
+
+REJECT               all                    --        anywhere                  anywhere                  reject-with                         icmp-host-prohibited
+
+all                  --                     anywhere  anywhere                  /*                        PVESIG:Jlkrtle1mDdtxDeI9QaDSL++Npc  */
+
+
+Chain PVEFW-smurflog (2 references)
+target               prot                   opt       source                    destination
+
+DROP                 all                    --        anywhere                  anywhere
+
+all                  --                     anywhere  anywhere                  /*                        PVESIG:2gfT1VMkfr0JL6OccRXTGXo+1qk  */
+
+
+Chain PVEFW-smurfs (2 references)
+target               prot                   opt       source                    destination
+
+RETURN               all                    --        0.0.0.0                   anywhere
+
+PVEFW-smurflog       all                    --        anywhere                  anywhere                  [goto]                              ADDRTYPE                    match
+    src-type                   BROADCAST
+PVEFW-smurflog       all                    --        base-address.mcast.net/4  anywhere                  [goto]
+
+all                  --                     anywhere  anywhere                  /*                        PVESIG:HssVe5QCBXd5mc9kC88749+7fag  */
+
+
+Chain PVEFW-tcpflags (0 references)
+target               prot                   opt       source                    destination
+
+PVEFW-logflags       tcp                    --        anywhere                  anywhere                  [goto]                              tcp                         flags:FIN,SYN,RST,PSH,ACK,URG/FIN,PSH,URG
+PVEFW-logflags       tcp                    --        anywhere                  anywhere                  [goto]                              tcp                         flags:FIN,SYN,RST,PSH,ACK,URG/NONE
+
+PVEFW-logflags       tcp                    --        anywhere                  anywhere                  [goto]                              tcp                         flags:SYN,RST/SYN,RST
+
+PVEFW-logflags       tcp                    --        anywhere                  anywhere                  [goto]                              tcp                         flags:FIN,SYN/FIN,SYN
+
+PVEFW-logflags       tcp                    --        anywhere                  anywhere                  [goto]                              tcp                         spt:0
+    flags:FIN,SYN,RST,ACK/SYN
+all                  --                     anywhere  anywhere                  /*                        PVESIG:CMFojwNPqllyqD67NeI5m+bP5mo  */

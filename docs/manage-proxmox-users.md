@@ -2,13 +2,13 @@
 
 ## 1. Create an `admins` group
 
-![Proxmox add group GUI](img/proxmox-add-group.png "Proxmox add group GUI")
+![Proxmox add group GUI](_img/proxmox-add-group.png "Proxmox add group GUI")
 
 ## 2. Add permission to `admins` group
 - Go to `Datacenter` > `Permissions` > `add` > `Group Permission`
 	
 - add **`Administrator`** role to the path **`/`** for the `admins` group
-![Proxmox add group permission GUI](img/proxmox-add-group-permission.png "Proxmox add group permissionGUI")
+  - ![Proxmox add group permission GUI](_img/proxmox-add-group-permission.png "Proxmox add group permissionGUI")
 
 ## 3. Create users
 ### Create a PAM user
@@ -17,23 +17,19 @@
 	adduser [options] <username>
 	```
   - In proxmox GUI, create a PAM user, add had him to the `admins` group
-	![Proxmox add user GUI](img/proxmox-add-user.png "Proxmox add user GUI")
+	![Proxmox add user GUI](_img/proxmox-add-user.png "Proxmox add user GUI")
 
 
-## Usefull commands
-- list users :
+## Usefull linux commands
+- list users
 	```sh
 	cat /etc/passwd
-	```
-- list groups :
-	```sh
-	cat /etc/group
 	```
 
 - add user
   - with prompt
 	```sh
-	adduser [options] <username>
+	adduser <username>
 	```
   - without prompt. Use -m / --create-home to create home dir as `/home/username`
 	```sh
@@ -41,7 +37,18 @@
 	passwd <username>
 	```
 
-- delete user :
+- delete user
 	```sh
-	userdel [options] <username>
+	userdel <username>
+	```
+
+## Permissions
+- list groups :
+	```sh
+	cat /etc/group
+	```
+
+- add user to group
+	```sh
+	usermod -a -G examplegroup exampleusername
 	```

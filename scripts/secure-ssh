@@ -1,0 +1,61 @@
+#!/bin/bash
+
+## TODO: 
+# - create groups
+# - create users
+# - add users to groups
+# - add groups to sshd_config
+# - add users to sshd_config
+
+## ARGUMENTS
+# $1 : IP address
+# $2 : Port
+sshPort=$1
+networkCIDR=$2
+localhostIP=$3
+hostIP=$4
+allowUers=$5 # username1 username2
+deniedUers=$6 # username1 username2
+allowGroups=$7 # username1 username2
+deniedGroups=$8 # username1 username2
+
+# Check if sshPort not empty
+if [ -z "$sshPort" ]; then
+	printf "ERROR: sshPort is empty\n";
+	exit 1;
+fi
+
+if [ -z "$networkCIDR" ]; then
+	printf "ERROR: networkCIDR is empty\n";
+	exit 1;
+fi
+
+# Check if localhostIP not empty
+if [ -z "$localhostIP" ]; then
+	printf "ERROR: localhostIP is empty\n";
+	exit 1;
+fi
+
+echo "
+Protocol 2
+Port ${sshPort}
+PermitRootLogin no 
+PermitEmptyPasswords no
+AllowUsers: ${allowUers}
+AllowGroups: ${allowGroups}
+DenyUsers: ${deniedUers}
+DenyGroups: ${deniedGroups}
+ClientAliveInterval 120
+MaxAuthTries 3
+X11Forwarding no 
+AllowTcpForwarding no
+MACs hmac-sha1,hmac-sha2-256,hmac-sha2-512
+# Banner /path/to/banner/banner.txt
+LogLevel INFO
+" >> /etc/ssh/sshd_config
+
+echo "
+sshd: 10.10.200.0/24 : ALLOW
+" >> /etc/hosts.allow
+
+service ssh restart

@@ -57,3 +57,6 @@ N: See apt-secure(8) manpage for repository creation and user configuration deta
 ```sh
 apt update
 ```
+
+### 🚨 Be careful with this 🚨 
+If there is a connection error, change `nameserver` in **/etc/resolv.conf** with `8.8.8.8`

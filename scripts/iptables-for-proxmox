@@ -1,0 +1,40 @@
+#!/bin/bash
+
+## * 🚧 TODO
+#  * - bastion : rebond avec interfaces entrée / sortie
+
+## ARGUMENTS
+# $1 : IP address
+# $2 : Port
+sshPort=$1
+networkCIDR=$2
+localhostIP=$3
+hostIP=$4
+
+# Check if sshPort not empty
+if [ -z "$sshPort" ]; then
+	printf "ERROR: sshPort is empty\n";
+	exit 1;
+fi
+
+if [ -z "$networkCIDR" ]; then
+	printf "ERROR: networkCIDR is empty\n";
+	exit 1;
+fi
+
+# Check if localhostIP not empty
+if [ -z "$localhostIP" ]; then
+	printf "ERROR: localhostIP is empty\n";
+	exit 1;
+fi
+
+# rules for ping
+iptables -t filter -A INPUT -p icmp -j ACCEPT
+iptables -t filter -A OUTPUT -p icmp -j ACCEPT
+
+iptables -I INPUT -p tcp --dport $sshPort -j DROP
+iptables -I INPUT -s $networkCIDR -p tcp --dport $sshPort -j ACCEPT
+
+# si une machine établie une connexion, on laisser passer la communication
+# iptables -A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
+# iptables -A OUTPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
