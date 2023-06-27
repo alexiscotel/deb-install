@@ -1,0 +1,157 @@
+#!/bin/bash
+
+############
+## COLORS ##
+############
+nocolor='\033[0m'
+whiite='\033[0;97m'
+whiitebold='\033[0;1;97m'
+purple='\033[0;38;5;201m'
+blue='\033[0;38;5;45m'
+blueblink='\033[0;5;38;5;45m'
+darkblue='\033[0;38;5;27m'
+green='\033[0;32m'
+greendim='\033[0;3;32m'
+yellow='\033[0;38;5;178m'
+orange='\e[38;5;166;3m'
+orangeital='\e[0;3;38;5;166m'
+gray='\033[0;38;5;249m'
+graybold='\033[0;1;38;5;249m'
+graydim='\033[0;2;38;5;250m'
+red='\033[0;91m'
+
+################
+## PARAMETERS ##
+################
+commandPath=$0
+commandName=`basename "$commandPath"`
+
+sshd_path="/usr/sbin/sshd"
+ssh_config_file="files/etc/ssh/sshd_config"
+
+ARG_KEY=
+ARG_VALUE=
+
+
+###############
+## FUNCTIONS ##
+###############
+
+# Function to validate the syntax of a configuration key
+validate_key_syntax() {
+    local key=$1
+    local value=$2
+
+    # # Check if /usr/sbin/sshd exists
+    # if ! command -v "$sshd_path" >/dev/null; then
+    #     printf "${orange}Cannot validate syntax. ${sshd_path} not found.${nocolor}\n"
+    #     return 1
+    # fi
+
+    # Use sshd to check if the syntax is valid
+    # $sshd_path -t -f /dev/null -o "${key} ${value}" 2>&1
+	# $sshd_path -t -F "$ssh_config_file" -fN
+	printf "${orange}"
+	sudo $sshd_path -f "$ssh_config_file" -o "${key} ${value}" 2>&1
+
+    # Check the return code of the sshd command
+    if [ $? -eq 0 ]; then
+        # printf "${graybold}\"${key}\"${green} is a valid parameter.${nocolor}\n"
+        return 0
+    else
+        printf "${graybold}\"${key}\"${red} is not a valid parameter.${nocolor}\n"
+        return 1
+    fi
+}
+
+# Function to update a specific configuration value
+update_sshd_config() {
+    local key=$1
+    local value=$2
+
+	# Validate the syntax of the key and value
+    validate_key_syntax "$key" "$value"
+    if [ $? -ne 0 ]; then
+        printf "${graydim}Cancel update.${nocolor}\n"
+        return
+    fi
+
+	# Use sed to find and replace the configuration line, even if it's commented out
+	sed -i "s/^#\?\s*${key}\s*.*/${key} ${value}/" "$ssh_config_file"
+	# Check if the sed command was successful
+	if [ $? -eq 0 ]; then
+		printf "${gray}Updated ${darkblue}${key}${gray} to ${purple}${value}${gray} in ${graybold}${ssh_config_file}${nocolor}\n"
+	else
+		printf "${orangeital}Failed to update ${key}${nocolor}\n"
+	fi
+}
+
+#############
+## HELPERS ##
+#############
+
+StartText () {
+    printf "\n${blue}This script is made for updating SSH configuration${nocolor}\n"
+}
+HowToUse () {
+printf "\n${darkblue}How to use ?${gray}
+${white}${commandName} -k <key> -v <value>${nocolor}\n"
+}
+
+#####
+## START SCRIPT
+#####
+
+# Check if the script is being run with root privileges
+if [ "$EUID" -ne 0 ]; then
+    printf "${red}Please run this script as root.${nocolor}\n"
+    exit 1
+fi
+
+# Check if ssh_config file exists
+if [ ! -f "$ssh_config_file" ]; then
+	printf "${red}sshd_config file not found at ${whiitebold}"${ssh_config_file}"${red}${nocolor}\n"
+	exit 1;
+fi
+
+# Check if sshd exists
+if ! command -v "$sshd_path" >/dev/null; then
+	printf "${red}Service ${whiitebold}"${sshd_path}"${red} not found.${nocolor}\n"
+	exit 1
+fi
+
+# Récupération des paramètres en utilisant getopts
+while [[ $# -gt 0 ]]; do
+  	case $1 in
+    	-k | --key)
+			shift
+			ARG_KEY=$1
+			;;
+		-v | --value)
+			shift
+			ARG_VALUE=$1
+			;;
+		*)
+			StartText
+			HowToUse
+			# echo "Option invalide: $1"
+			exit 1
+			;;
+  	esac
+  	shift
+done
+
+# Vérification des paramètres obligatoires
+if [[ -z $ARG_KEY ]]; then
+  printf "${red}Le paramètre -k | --key est obligatoire.${nocolor}"
+  HowToUse
+  exit 1
+fi
+
+if [[ -z $ARG_VALUE ]]; then
+  printf "${red}Le paramètre -v | --value est obligatoire.${nocolor}"
+  HowToUse
+  exit 1
+fi
+
+update_sshd_config "$ARG_KEY" "$ARG_VALUE"

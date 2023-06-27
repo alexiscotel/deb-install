@@ -24,6 +24,8 @@ sshd: 10.10.200.0/24 : ALLOW
 ```
 
 ## Docs
+Install with `apt install openssh-server`
+
 Disable Root User Logins
 ```sh
 useradd -m username

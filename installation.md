@@ -34,6 +34,7 @@ Protocol 2
 Port 5922
 PermitRootLogin no 
 PermitEmptyPasswords no
+# UsePAM=no
 AllowUsers: username sshuser@ip:port
 AllowGroups: groupname
 DenyUsers: username1 username2 sshuser@ip:port
@@ -53,6 +54,10 @@ sshd: 10.10.200.0/24 : ALLOW
 
 
 ## Backup
+
+## Beautifier
+- [prettier-shell](git@github.com:alexiscotel/prettier-shell.git), to custom your `.bashrc`
+- [prettier-motd](git@github.com:alexiscotel/prettier-motd.git), for a better `motd` message
 
 ---
 

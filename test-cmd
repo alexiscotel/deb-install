@@ -1,0 +1,7 @@
+#!/bin/bash
+
+commandPath=$0
+commandName=`basename "$commandPath"`
+
+echo "$commandPath"
+echo "$commandName"
