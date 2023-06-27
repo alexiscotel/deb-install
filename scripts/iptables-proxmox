@@ -3,38 +3,213 @@
 ## * 🚧 TODO
 #  * - bastion : rebond avec interfaces entrée / sortie
 
+############
+## COLORS ##
+############
+nocolor='\033[0m'
+whiite='\033[0;97m'
+whiitebold='\033[0;1;97m'
+purple='\033[0;38;5;201m'
+blue='\033[0;38;5;45m'
+blueblink='\033[0;5;38;5;45m'
+darkblue='\033[0;38;5;27m'
+green='\033[0;32m'
+greendim='\033[0;3;32m'
+yellow='\033[0;38;5;178m'
+orange='\e[38;5;166;3m'
+orangeital='\e[0;3;38;5;166m'
+gray='\033[0;38;5;249m'
+graybold='\033[0;1;38;5;249m'
+graydim='\033[0;2;38;5;250m'
+red='\033[0;91m'
+## CUSTOM
+# c__fctName='\033[0;38;5;45m'
+c__fctName=$whiitebold
+c__fctAction=$graydim
+c__fct2=$gray
+c__msgVar=$graybold
+c__value=$blue
+c__error=$red
+c__success=$green
+
+
+###############
+## PARAMETERS
+###############
+commandPath=$0
+commandName=`basename "$commandPath"`
+pwd=$(pwd)
+actualpwd=$(pwd)
+
+##############
 ## ARGUMENTS
-# $1 : IP address
-# $2 : Port
-sshPort=$1
-networkCIDR=$2
-localhostIP=$3
-hostIP=$4
+##############
+ssh_port=
+network_host=
+network_vm=
+bastion=
 
-# Check if sshPort not empty
-if [ -z "$sshPort" ]; then
-	printf "ERROR: sshPort is empty\n";
-	exit 1;
-fi
+CheckIptables() {
+	# Vérification des paramètres obligatoires
+	printf "${c__fctAction}Checking iptables ...${nocolor}\n"
+	if [[ -z $ssh_port ]]; then
+		printf "${c__error}iptables not found${nocolor}
+		\n"
+		exit 1
+	else
+		printf "${c__fct2}iptables found${nocolor}\n"
+	fi
+}
 
-if [ -z "$networkCIDR" ]; then
-	printf "ERROR: networkCIDR is empty\n";
-	exit 1;
-fi
+CheckMandatoryParams() {
+	printf "${c__fctName}Checking mandatory parameters ...${nocolor}\n"
 
-# Check if localhostIP not empty
-if [ -z "$localhostIP" ]; then
-	printf "ERROR: localhostIP is empty\n";
-	exit 1;
-fi
+	# Vérification des paramètres obligatoires
+	printf "${c__fctAction}Checking for SSH Port ...${nocolor}\n"
+	if [[ -z $ssh_port ]]; then
+		printf "${c__error}parameter ${c__msgVar}-s | --sshport${c__error} is mandatory.${nocolor}
+		\n"
+		exit 1
+	else
+		printf "${c__fct2}SSH Port : ${c__value}${ssh_port}${nocolor}\n"
+	fi
 
-# rules for ping
-iptables -t filter -A INPUT -p icmp -j ACCEPT
-iptables -t filter -A OUTPUT -p icmp -j ACCEPT
+	printf "${c__fctAction}Checking for host network ...${nocolor}\n"
+	if [[ -z $network_host ]]; then
+		printf "${c__error}parameter ${c__msgVar}-n | --network-host${c__error} is mandatory.${nocolor}
+		\n"
+		exit 1
+	else
+		printf "${c__fct2}host network : ${c__value}${network_host}${nocolor}\n"
+	fi
 
-iptables -I INPUT -p tcp --dport $sshPort -j DROP
-iptables -I INPUT -s $networkCIDR -p tcp --dport $sshPort -j ACCEPT
+	# printf "${c__fctAction}Checking for VMs network ...${nocolor}\n"
+	# if [[ -z $network_vm ]]; then
+	# 	printf "${c__error}parameter ${c__msgVar}-n | --network-vm${c__error} is mandatory.${nocolor}
+	# 	\n"
+	# 	exit 1
+	# else
+	# 	printf "${c__fct2}VMs network : ${c__value}${network_vm}${nocolor}\n"
+	# fi
 
-# si une machine établie une connexion, on laisser passer la communication
-# iptables -A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
-# iptables -A OUTPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
+	# printf "${c__fctAction}Checking for localhost IP ...${nocolor}\n"
+	# if [[ -z $localhostIP ]]; then
+	# 	printf "${c__error}parameter ${c__msgVar}-i | --localhostIP${c__error} is mandatory.${nocolor}
+	# 	\n"
+	# 	exit 1
+	# else
+	# 	printf "${c__fct2}localhostIP : ${c__value}${localhostIP}${nocolor}\n"
+	# fi
+
+	printf "\n${c__success}Mandatory parameters OK${nocolor}
+	\n"
+}
+
+
+ManageICMP(){
+	printf "${c__fctName}Adding ICMP rule ...${nocolor}\n"
+	# rules for ping
+	iptables > /dev/null
+	if [[ $? -eq 0 ]]; then
+		iptables -t filter -A INPUT -p icmp -j ACCEPT
+		iptables -t filter -A OUTPUT -p icmp -j ACCEPT
+	else
+		printf "${c__error}iptables not found${nocolor}
+		\n"
+		exit 1
+	fi
+	
+	printf "\n${c__success}ICMP rules added${nocolor}
+	\n"
+}
+
+ManageSSH(){
+	printf "${c__fctName}Adding SSH rule for ${blue}${network_host}:${ssh_port}${c__funcName} ...${nocolor}\n"
+
+	iptables > /dev/null
+	if [[ $? -eq 0 ]]; then
+		iptables -I INPUT -p tcp --dport $ssh_port -j DROP
+		iptables -I INPUT -s $network_host -p tcp --dport $ssh_port -j ACCEPT
+	else
+		printf "${c__error}iptables not found${nocolor}
+		\n"
+		exit 1
+	fi
+
+	printf "\n${c__success}SSH rules added${nocolor}
+	\n"
+}
+
+# ManageResponse(){
+# 	# si une machine établie une connexion, on laisser passer la communication
+# 	# iptables -A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
+# 	# iptables -A OUTPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
+# }
+
+
+
+StartText () {
+clear
+printf "${blue}$commandName${whiitebold} script ${nocolor}
+
+${whiitebold}This script is used to configure iptables on PROXMOX server.
+
+${yellow}🚨 By default, PROXMOX allow ssh connection from local network.
+${nocolor}\n"
+}
+HowToUse() {
+printf "❓ ${blue}How to use${gray}
+
+${commandName} -p 2222 -n 192.168.0.1/24 -u username1,sshuser@ip:port -g group1,group2 -U username3,sshuser@ip:port -G group4${nocolor}
+
+${whiitebold}Parameters :${gray}
+    -p  --sshport      : SSH port
+    -h  --network-host : host network
+    -v  --network-vm   : VMs Network
+    -b  --bastion   : Bastion, to connect to VMs
+${nocolor}\n"
+}
+
+## ------------------------------------------------------------------------------------------------------------------------------------ ##
+
+# CheckIfRoot
+StartText
+
+CheckIptables
+
+# Récupération des paramètres en utilisant getopts
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -p | --sshport)
+      shift
+      ssh_port=$1
+      ;;
+    -h | --network-host)
+      shift
+      network_host=$1
+      ;;
+    -v | --network-vm)
+      shift
+      network_vm=$1
+      ;;
+	-b | --bastion)
+	  shift
+	  bastion=$1
+	  ;;
+    --help)
+	HowToUse
+	exit 0
+		;;
+	*)
+      echo "Option invalide: $1"
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+CheckMandatoryParams
+
+ManageICMP
+ManageSSH
+# ManageResponse

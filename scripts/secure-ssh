@@ -1,93 +1,134 @@
 #!/bin/bash
 
+############
+## COLORS ##
+############
+nocolor='\033[0m'
+whiite='\033[0;97m'
+whiitebold='\033[0;1;97m'
+purple='\033[0;38;5;201m'
+blue='\033[0;38;5;45m'
+blueblink='\033[0;5;38;5;45m'
+darkblue='\033[0;38;5;27m'
+green='\033[0;32m'
+greendim='\033[0;3;32m'
+yellow='\033[0;38;5;178m'
+orange='\e[38;5;166;3m'
+orangeital='\e[0;3;38;5;166m'
+gray='\033[0;38;5;249m'
+graybold='\033[0;1;38;5;249m'
+graydim='\033[0;2;38;5;250m'
+red='\033[0;91m'
+## CUSTOM
+# c__fctName='\033[0;38;5;45m'
+c__fctName=$whiitebold
+c__fctAction=$graydim
+c__fct2=$gray
+c__msgVar=$graybold
+c__value=$blue
+c__error=$red
+c__success=$green
+
+
+###############
+## PARAMETERS
+###############
+commandPath=$0
+commandName=`basename "$commandPath"`
+pwd=$(pwd)
+actualpwd=$(pwd)
+
+
+##############
 ## VARIABLES
-sshd_config="files/etc/ssh/sshd_config"
+##############
+sshd_config="../files/etc/ssh/sshd_config"
 PWD=$(pwd)
 
 
-# Check if the script is being run with root privileges
-# if [ "$EUID" -ne 0 ]; then
-#     echo "Please run this script as root."
-#     exit 1
-# fi
-
-# Récupération des paramètres en utilisant getopts
-while [[ $# -gt 0 ]]; do
-  case $1 in
-    --allowedusers)
-      shift
-      allowed_users=($(echo "$1" | tr ',' ' '))
-      ;;
-    --allowedgroups)
-      shift
-      allowed_groups=($(echo "$1" | tr ',' ' '))
-      ;;
-    --deniedusers)
-      shift
-      denied_users=($(echo "$1" | tr ',' ' '))
-      ;;
-    --deniedgroups)
-      shift
-      denied_groups=($(echo "$1" | tr ',' ' '))
-      ;;
-    --sshport)
-      shift
-      ssh_port=$1
-      ;;
-    --networkcidr)
-      shift
-      network_cidr=$1
-      ;;
-    *)
-      echo "Option invalide: $1"
-      exit 1
-      ;;
-  esac
-  shift
-done
+CheckIfRoot() {
+	if [ "$EUID" -ne 0 ]; then
+	    printf "${red}Please run this script as root.${nocolor}\n"
+	    exit 1
+	fi
+}
 
 CheckMandatoryParams() {
+	printf "${c__fctName}Checking mandatory parameters ...${nocolor}\n"
 	# Vérification des paramètres obligatoires
+	printf "${c__fctAction}Checking for ssh parameter ...${nocolor}\n"
 	if [[ -z $ssh_port ]]; then
-		echo "Le paramètre --sshport est obligatoire."
+		printf "${c__error}parameter ${c__msgVar}--sshport${c__error} is mandatory.${nocolor}\n"
 		exit 1
+	else
+		printf "${c__fct2}SSH Port : ${c__value}${ssh_port}${nocolor}\n"
 	fi
 
+	printf "${c__fctAction}Checking for network IP/CIDIR parameter ...${nocolor}\n"
 	if [[ -z $network_cidr ]]; then
-		echo "Le paramètre --networkcidr est obligatoire."
+		printf "${c__error}parameter ${c__msgVar}--networkcidr${c__error} is mandatory.${nocolor}
+		\n"
 		exit 1
+	else
+		printf "${c__fct2}network IP/CIDIR : ${c__value}${network_cidr}${nocolor}\n"
 	fi
+	printf "\n${c__success}Mandatory parameters OK${nocolor}
+	\n"
 }
 
 
-DisplayValues() {
-	## Affichage values
+CheckUsersAndGroups() {
+	# check if username contained in allowed_users array are valid
+	echo "allowed_users"
+	for allow_user in "${allowed_users[*]}"
+	do
+		echo "$allow_user"
+	done
+}
+
+
+
+ManageAllowUsers() {
+	printf "${c__fctName}Manage allowed users ...${nocolor}\n"
 	# Configuration des utilisateurs autorisés
 	if [[ ${#allowed_users[@]} -gt 0 ]]; then
-		echo "AllowUsers ${allowed_users[*]}"
+		bash ./update-ssh-config -k AllowUsers -v "${allowed_users[*]}"
+	else
+		printf "${c__fctAction}No allowed users to add${nocolor}\n"
 	fi
-
-	# Configuration des groupes autorisés
-	if [[ ${#allowed_groups[@]} -gt 0 ]]; then
-		echo "AllowGroups ${allowed_groups[*]}"
-	fi
-
-	# Configuration des utilisateurs non-autorisés
-	if [[ ${#denied_users[@]} -gt 0 ]]; then
-		echo "DenyUsers ${denied_users[*]}"
-	fi
-
-	# Configuration des groupes non-autorisés
-	if [[ ${#denied_groups[@]} -gt 0 ]]; then
-		echo "DenyGroups ${denied_groups[*]}"
-	fi
-
-	# Configuration du port SSH
-	echo "Port $ssh_port"
-
-	# Configuration du CIDR réseau
-	echo "ListenAddress $network_cidr"
+	printf "\n"
 }
+ManageAllowGroups() {
+	printf "${c__fctName}Manage allowed groups ...${nocolor}\n"
+	# Configuration des utilisateurs autorisés
+	if [[ ${#allowed_groups[@]} -gt 0 ]]; then
+		bash ./update-ssh-config -k AllowGroups -v "${allowed_groups[*]}"
+	else
+		printf "${c__fctAction}No allowed groups to add${nocolor}\n"
+	fi
+	printf "\n"
+}
+ManageDeniedUsers() {
+	printf "${c__fctName}Manage denied users ...${nocolor}\n"
+	# Configuration des utilisateurs autorisés
+	if [[ ${#denied_users[@]} -gt 0 ]]; then
+		bash ./update-ssh-config -k DenyUsers -v "${denied_users[*]}"
+	else
+		printf "${c__fctAction}No denied users to add${nocolor}\n"
+	fi
+	printf "\n"
+}
+ManageDeniedGroups() {
+	printf "${c__fctName}Manage denied groups ...${nocolor}\n"
+	# Configuration des utilisateurs autorisés
+	if [[ ${#denied_group[@]} -gt 0 ]]; then
+		bash ./update-ssh-config -k DenyGroups -v "${denied_group[*]}"
+	else
+		printf "${c__fctAction}No denied groups to add${nocolor}\n"
+	fi
+	printf "\n"
+}
+
 
 
 SavePreviousFile() {
@@ -109,3 +150,83 @@ UpdateConfig() {
 DisplayConfig() {
 	cat "$sshd_config"
 }
+
+
+StartText () {
+clear
+printf "🔐 ${blue}$commandName script ${nocolor}🔐
+
+${whiitebold}This script is made for easily configure .bashrc
+Get a prettier shell than the default one 😎
+Follow the next steps to configure it !${nocolor}
+\n"
+}
+HowToUse() {
+printf "❓ ${blue}How to use${gray}
+
+${commandName} -p 2222 -n 192.168.0.1/24 -u username1,sshuser@ip:port -g group1,group2 -U username3,sshuser@ip:port -G group4${nocolor}
+
+${whiitebold}Parameters :${gray}
+    -p  --sshport       : SSH port
+    -n  --networkcidr   : Network CIDR
+    -u  --allowedusers  : Allowed users to connect through SSH
+    -g  --allowedgroups : Allowed groups to connect through SSH
+    -U  --deniedusers   : Denied users to connect through SSH
+    -G  --deniedgroups  : Denied groups to connect through SSH
+    -h  --help          : show this message
+${nocolor}\n"
+}
+
+## ------------------------------------------------------------------------------------------------------------------------------------ ##
+
+# CheckIfRoot
+StartText
+# Récupération des paramètres en utilisant getopts
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -p | --sshport)
+      shift
+      ssh_port=$1
+      ;;
+    -n | --networkcidr)
+      shift
+      network_cidr=$1
+      ;;
+    -u | --allowedusers)
+      shift
+      allowed_users=($(echo "$1" | tr ',' ' '))
+      ;;
+    -g | --allowedgroups)
+      shift
+      allowed_groups=($(echo "$1" | tr ',' ' '))
+      ;;
+    -U | --deniedusers)
+      shift
+      denied_users=($(echo "$1" | tr ',' ' '))
+      ;;
+    -G | --deniedgroups)
+      shift
+      denied_groups=($(echo "$1" | tr ',' ' '))
+      ;;
+    -h | --help)
+	HowToUse
+	exit 0
+		;;
+	*)
+      echo "Option invalide: $1"
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+# CheckMandatoryParams
+
+CheckUsersAndGroups
+
+# ManageAllowUsers
+# ManageAllowGroups
+# ManageDeniedUsers
+# ManageDeniedGroups
+
+exit 0

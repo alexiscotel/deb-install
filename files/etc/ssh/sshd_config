@@ -1,5 +1,5 @@
 # This is the sshd server system-wide configuration file.  See
-# sshd_config(5) for more information.
+ss eess
 
 # This sshd was compiled with PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games
 
@@ -10,7 +10,7 @@
 
 Include /etc/ssh/sshd_config.d/*.conf
 
-Port 445
+
 #AddressFamily any
 #ListenAddress 0.0.0.0
 #ListenAddress ::
@@ -116,4 +116,14 @@ Subsystem       sftp    /usr/lib/openssh/sftp-server
 #       X11Forwarding no
 #       AllowTcpForwarding no
 #       PermitTTY no
-#       ForceCommand cvs server
+#       ForceCommand cvs serverPorto 35574
+
+
+# TO VALIDATE
+AllowUsers alexis leo
+
+# TO VALIDATE
+AllowGroups sshers
+
+# TO VALIDATE
+DenyUsers toto titi

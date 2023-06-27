@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# TODO:
+# - create users
+# - create groups
+# - add users to groups
+# - add both to ssh config
+
+
+
+## ARGUMENTS
+allowed_users=
+allowed_groups=
+denied_users=
+denied_groups=
+
+
+
+
+## -----------------------------------------------------------------------
+# CheckIfRoot
+StartText
+# Récupération des paramètres en utilisant getopts
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -u | --allowedusers)
+      shift
+    #   allowed_users=($(echo "$1" | tr ',' ' '))
+      allowed_users=$1
+      ;;
+    -g | --allowedgroups)
+      shift
+    #   allowed_groups=($(echo "$1" | tr ',' ' '))
+      allowed_groups=$1
+      ;;
+    -U | --deniedusers)
+      shift
+    #   denied_users=($(echo "$1" | tr ',' ' '))
+      denied_users=$1
+      ;;
+    -G | --deniedgroups)
+      shift
+    #   denied_groups=($(echo "$1" | tr ',' ' '))
+      denied_groups=$1
+      ;;
+    -h | --help)
+	HowToUse
+	exit 0
+		;;
+	*)
+      echo "Option invalide: $1"
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+echo "allowed_users"
+for allow_user in "${allowed_users[*]}"
+do
+    echo "$allow_user\n"
+	# adduser $allow_user
+done
+
+# # usermod -aG adm alex
+# usermod -aG sudo alex

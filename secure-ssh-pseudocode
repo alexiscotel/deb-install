@@ -1,9 +1,0 @@
-Rédige un script qui va sécuriser ssh. 
-Il n'y a pas d'interaction avec l'utilisateur, toutes les infos sont passées en paramètre.
-Définition des paramètres :
-Un paramètre (avec le flag --allowedusers) récupère les utilisateurs autorisés
-Un paramètre (avec le flag --allowedgroups) récupère les groupes autorisés
-Un paramètre (avec le flag --deniedusers) récupère les utilisateurs non-autorisés
-Un paramètre (avec le flag --deniedgroups) récupère les groupes non-autorisés
-Un paramètre (avec le flag --sshport) récupère le port ssh à utiliser
-Un paramètre (avec le flag --networkcidr) récupère le CIDR à utiliser
