@@ -210,6 +210,6 @@ done
 
 CheckMandatoryParams
 
-ManageICMP
+# ManageICMP
 ManageSSH
 # ManageResponse
