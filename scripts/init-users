@@ -1,10 +1,7 @@
 #!/bin/bash
 
-# TODO:
-# - create users
-# - create groups
-# - add users to groups
-# - add both to ssh config
+# create a script to add users to groups
+# add-user-to-group group1:username1,username2,group2:username3,username4
 
 ############
 ## COLORS ##
@@ -35,44 +32,28 @@ c__value=$blue
 c__error=$red
 c__success=$green
 
+
+## VARIABLES
+pwd=$(pwd)
+actualpwd=$(pwd)
+
 ###############
 ## PARAMETERS
 ###############
 commandPath=$0
 commandName=`basename "$commandPath"`
-pwd=$(pwd)
-actualpwd=$(pwd)
+groupstring=$1
 
-## ARGUMENTS
-create=false
-delete=false
 
-allowed_users=()
-existing_allowed_users=()
-allowed_groups=()
-existing_allowed_groups=()
-denied_users=()
-existing_denied_users=()
-denied_groups=()
-existing_denied_groups=()
-
+##############
+## FUNCTIONS
+##############
 
 CheckMandatoryParams() {
-	printf "${c__fctName}Checking parameters ...${nocolor}\n"
-
-	printf "${c__fctAction}Checking for status ...${nocolor}\n"
-	if [[ $create = false && $delete = false ]] || [[ $create = true && $delete = true ]]; then
-		printf "${c__error}Choose between ${whiitebold}--create${c__error} and ${whiitebold}--delete${nocolor}\n"
+	if [ -z "$groupstring" ]; then
+		printf "${c__error}ERROR: ${c__value}Missing mandatory parameter${nocolor}"
 		exit 1
 	fi
-
-	printf "${c__fctAction}Checking for non-empty parameter ...${nocolor}\n"
-	if [ -z $allowed_users ] && [ -z $allowed_groups ] && [ -z $denied_users ] && [ -z $denied_groups ]; then
-		printf "${c__error}Use one of theses parameters : --allow-users, --allow-groups, --denied-users, --denied-groups${nocolor}\n"
-		exit 1
-	fi
-	printf "\n${c__success}Parameters OK${nocolor}
-	\n"
 }
 
 CheckIfUserExists() {
@@ -80,12 +61,10 @@ CheckIfUserExists() {
 	printf "${c__fctName}Checking user $user ...${nocolor}\n"
 	getent passwd $user > /dev/null 2>&1
 	if [ $? -eq 0 ]; then
-		printf "${c__success}user ${whiitebold}$user${c__success} exist${nocolor}
-		\n"
+		printf "${c__success}user ${whiitebold}$user${c__success} exist${nocolor}\n"
 		return 0
 	else
-		printf "${c__error}user ${whiitebold}$user${c__error} not exist${nocolor}
-		\n"
+		printf "${c__error}user ${whiitebold}$user${c__error} not exist${nocolor}\n"
 		return 1
 	fi
 }
@@ -94,63 +73,83 @@ CheckIfGroupExists() {
 	printf "${c__fctName}Checking group $group ...${nocolor}\n"
 	getent group $group > /dev/null 2>&1
 	if [ $? -eq 0 ]; then
-		printf "${c__success}group ${whiitebold}$group${c__success} exist${nocolor}
-		\n"
+		printf "${c__success}group ${whiitebold}$group${c__success} exist${nocolor}\n"
 		return 0
 	else
-		printf "${c__error}group ${whiitebold}$group${c__error} not exist${nocolor}
-		\n"
+		printf "${c__error}group ${whiitebold}$group${c__error} not exist${nocolor}\n"
 		return 1
 	fi
 }
 
-CreateAllowUsers() {
-	for usr in "${allowed_users[@]}"; do
-		CheckIfUserExists $usr
-		if [ $? -eq 0 ]; then
-			existing_allowed_users+=("$usr")
-		else
-			adduser $usr > /dev/null 2>&1
+
+
+Main() {
+	IFS='/' read -r -a groups <<< "${groupstring}"
+	
+	for grp in "${groups[@]}"; do
+		local groupName=$(echo "$grp" | cut -d':' -f1)
+		local users=$(echo "$grp" | cut -d':' -f2)
+		IFS=',' read -r -a usernames <<< "${users}"
+
+		printf "${c__fctName}Group: ${c__value}${groupName}${nocolor}\n"
+
+		## GROUP CREATION
+		CheckIfGroupExists $groupName
+		if [ $? -eq 1 ]; then
+			printf "${c__fctAction}Creating group ${c__msgVar}${groupName}${c__fctAction} ... ${nocolor}"
+			addgroup $groupName > /dev/null 2>&1
+			if [ $? -eq 0 ]; then
+				printf "${c__success}added${nocolor}\n"
+				# returnVal=true
+			else
+				printf "${c__error}failed${nocolor}\n"
+				returnVal=false
+			fi
 		fi
+
+		printf "\n${c__fctName}Users: ${c__value}${usernames[*]}${nocolor}\n"
+		# ## FOR each USERNAMES
+		for usrname in "${usernames[@]}"; do
+			local userCreated=false
+			
+			## USER CREATION
+			CheckIfUserExists $usrname
+			if [ $? -eq 1 ]; then
+				printf "${c__fctAction}Creating user ${c__msgVar}${usrname}${c__fctAction} ... ${nocolor}"
+				adduser $usrname > /dev/null 2>&1
+				if [ $? -eq 0 ]; then
+					printf "${c__success}added${nocolor}\n"
+					userCreated=true
+				else
+					printf "${c__error}failed${nocolor}\n"
+					userCreated=false
+				fi
+			else
+				userCreated=false
+			fi
+
+			## ADD USER to GROUP
+			if [ $userCreated != true ]; then
+				continue;
+			else
+				printf "${c__fctAction}Inserting user ${c__msgVar}${usrname}${c__fctAction} to group ${c__msgVar}${groupName}${c__fctAction} ... ${nocolor}"
+				sudo usermod -aG ${groupName} ${usrname} > /dev/null 2>&1
+				if [ $? -eq 0 ]; then
+					printf "${c__success}added${nocolor}\n"
+					# return 0
+				else
+					printf "${c__error}failed${nocolor}\n"
+					# return 1
+				fi
+			fi
+
+		done
+
+		printf "\n"
 	done
 }
-
-CreateAllowGroups() {
-	for grp in "${allowed_groups[@]}"; do
-		CheckIfGroupExists $grp
-		if [ $? -eq 0 ]; then
-			existing_allowed_groups+=("$grp")
-		else
-			addgroup $usr > /dev/null 2>&1
-		fi
-	done
-}
-
-CreateDeniedUsers() {
-	for usr in "${denied_users[@]}"; do
-		CheckIfUserExists $usr
-		if [ $? -eq 0 ]; then
-			existing_denied_users+=("$usr")
-		else
-			adduser $usr > /dev/null 2>&1
-		fi
-	done
-}
-
-CreateDeniedGroups() {
-	for grp in "${denied_groups[@]}"; do
-		CheckIfGroupExists $grp
-		if [ $? -eq 0 ]; then
-			existing_denied_groups+=("$grp")
-		else
-			addgroup $usr > /dev/null 2>&1
-		fi
-	done
-}
-
 
 StartText () {
-clear
 printf "🔐 ${blue}$commandName script ${nocolor}🔐
 
 ${whiitebold}This script is made to create users and groups${nocolor}
@@ -159,15 +158,13 @@ ${whiitebold}This script is made to create users and groups${nocolor}
 HowToUse() {
 printf "❓ ${blue}How to use${gray}
 
-${commandName} -u username1,sshuser@ip:port -g group1,group2 -U username3,sshuser@ip:port -G group4${nocolor}
+${commandName} --create -g group1:username1,sshuser@ip:port/group2:username3,username4${nocolor}
 
 ${whiitebold}Parameters :${gray}
 	--create             : Flag to for creation
 	--delete             : Flag to delete
-    -u  --allowed-users  : Allowed users to connect through SSH
-    -g  --allowed-groups : Allowed groups to connect through SSH
-    -U  --denied-users   : Denied users to connect through SSH
-    -G  --denied-groups  : Denied groups to connect through SSH
+    -g  --groups : Allowed groups to connect through SSH
+				(format: --allowed-groups group1:username1,username2/group2:username3,username4)
     -h  --help          : show this message
 ${nocolor}\n"
 }
@@ -183,25 +180,10 @@ while [[ $# -gt 0 ]]; do
 	--delete)
 	  delete=true
 	  ;;
-    -u | --allowed-users)
+    -g | --groups)
       shift
-      allowed_users_str=$1
-      allowed_users=($(echo "$1" | tr ',' ' '))
-      ;;
-    -g | --allowed-groups)
-      shift
-      allowed_groups_str=$1
-      allowed_groups=($(echo "$1" | tr ',' ' '))
-      ;;
-    -U | --denied-users)
-      shift
-      denied_users_str=$1
-      denied_users=($(echo "$1" | tr ',' ' '))
-      ;;
-    -G | --denied-groups)
-      shift
-      denied_groups_str=$1
-      denied_groups=($(echo "$1" | tr ',' ' '))
+      groupstring=$1
+    #   allowed_groups=($(echo "$1" | tr ',' ' '))
       ;;
     -h | --help)
 	HowToUse
@@ -217,10 +199,4 @@ done
 
 CheckMandatoryParams
 
-CreateAllowUsers
-CreateAllowGroups
-CreateDeniedUsers
-CreateDeniedGroups
-
-# # usermod -aG adm alex
-# usermod -aG sudo alex
+Main
