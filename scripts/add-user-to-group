@@ -1,0 +1,87 @@
+#!/bin/bash
+
+# create a script to add users to groups
+# add-user-to-group group1:username1,username2,group2:username3,username4
+
+############
+## COLORS ##
+############
+nocolor='\033[0m'
+whiite='\033[0;97m'
+whiitebold='\033[0;1;97m'
+purple='\033[0;38;5;201m'
+blue='\033[0;38;5;45m'
+blueblink='\033[0;5;38;5;45m'
+darkblue='\033[0;38;5;27m'
+green='\033[0;32m'
+greendim='\033[0;3;32m'
+yellow='\033[0;38;5;178m'
+orange='\e[38;5;166;3m'
+orangeital='\e[0;3;38;5;166m'
+gray='\033[0;38;5;249m'
+graybold='\033[0;1;38;5;249m'
+graydim='\033[0;2;38;5;250m'
+red='\033[0;91m'
+## CUSTOM
+# c__fctName='\033[0;38;5;45m'
+c__fctName=$whiitebold
+c__fctAction=$graydim
+c__fct2=$gray
+c__msgVar=$graybold
+c__value=$blue
+c__error=$red
+c__success=$green
+
+
+## VARIABLES
+pwd=$(pwd)
+actualpwd=$(pwd)
+
+###############
+## PARAMETERS
+###############
+commandPath=$0
+commandName=`basename "$commandPath"`
+
+groupstring=$1
+groups=()
+usernames=()
+
+
+CheckMandatoryParams() {
+	if [ -z "$groupstring" ]; then
+		printf "${c__error}ERROR: ${c__value}Missing mandatory parameter${nocolor}"
+		exit 1
+	fi
+}
+
+getGroupsFromString() {
+	IFS='/' read -r -a groups <<< "${groupstring}"
+	for grp in "${groups[@]}"; do
+
+		local groupName=$(echo "$grp" | cut -d':' -f1)
+		local users=$(echo "$grp" | cut -d':' -f2)
+		IFS=',' read -r -a usernames <<< "${users}"
+
+		printf "${c__fctName}Group: ${c__value}${groupName}${nocolor}\n"
+
+		for usrname in "${usernames[@]}"; do
+
+			printf "${c__fctAction}Inserting user ${c__msgVar}${usrname}${c__fctAction} to group ${c__msgVar}${groupName} ... ${nocolor}"
+			sudo usermod -aG ${groupName} ${usrname} > /dev/null 2>&1
+			if [ $? -eq 0 ]; then
+				printf "${c__success}added${nocolor}\n"
+				# return 0
+			else
+				printf "${c__error}failed${nocolor}\n"
+				# return 1
+			fi
+		done
+		
+	done
+}
+
+
+CheckMandatoryParams
+
+getGroupsFromString
