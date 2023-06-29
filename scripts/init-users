@@ -16,7 +16,7 @@ darkblue='\033[0;38;5;27m'
 green='\033[0;32m'
 greendim='\033[0;3;32m'
 yellow='\033[0;38;5;178m'
-orange='\e[38;5;166;3m'
+orange='\e[0;3;38;5;166;3m'
 orangeital='\e[0;3;38;5;166m'
 gray='\033[0;38;5;249m'
 graybold='\033[0;1;38;5;249m'
@@ -30,6 +30,7 @@ c__fct2=$gray
 c__msgVar=$graybold
 c__value=$blue
 c__error=$red
+c__warning=$orange
 c__success=$green
 
 
@@ -37,22 +38,36 @@ c__success=$green
 pwd=$(pwd)
 actualpwd=$(pwd)
 
+errors=()
+
 ###############
 ## PARAMETERS
 ###############
 commandPath=$0
 commandName=`basename "$commandPath"`
-groupstring=$1
-
+groupstring=
+silent=false
 
 ##############
 ## FUNCTIONS
 ##############
+GenerateErrorLogs() {
+	local file=$1
+	
+	if [ ! -f $file ]; then
+		touch $file
+	fi
+
+	if [ ${#errors[@]} -gt 0 ]; then
+		printf "%s\n" "${errors[@]}" > $file
+	fi
+}
+
 
 CheckMandatoryParams() {
 	if [ -z "$groupstring" ]; then
-		printf "${c__error}ERROR: ${c__value}Missing mandatory parameter${nocolor}"
-		exit 1
+		printf "${c__error}parameter ${c__msgVar}-g | --groups${c__error} is mandatory.${nocolor}\n"
+		return 1
 	fi
 }
 
@@ -64,7 +79,7 @@ CheckIfUserExists() {
 		printf "${c__success}user ${whiitebold}$user${c__success} exist${nocolor}\n"
 		return 0
 	else
-		printf "${c__error}user ${whiitebold}$user${c__error} not exist${nocolor}\n"
+		printf "${c__warning}user ${whiitebold}$user${c__warning} not exist${nocolor}\n"
 		return 1
 	fi
 }
@@ -76,7 +91,7 @@ CheckIfGroupExists() {
 		printf "${c__success}group ${whiitebold}$group${c__success} exist${nocolor}\n"
 		return 0
 	else
-		printf "${c__error}group ${whiitebold}$group${c__error} not exist${nocolor}\n"
+		printf "${c__warning}group ${whiitebold}$group${c__warning} not exist${nocolor}\n"
 		return 1
 	fi
 }
@@ -87,6 +102,7 @@ Main() {
 	IFS='/' read -r -a groups <<< "${groupstring}"
 	
 	for grp in "${groups[@]}"; do
+		local groupCreated=false
 		local groupName=$(echo "$grp" | cut -d':' -f1)
 		local users=$(echo "$grp" | cut -d':' -f2)
 		IFS=',' read -r -a usernames <<< "${users}"
@@ -100,10 +116,11 @@ Main() {
 			addgroup $groupName > /dev/null 2>&1
 			if [ $? -eq 0 ]; then
 				printf "${c__success}added${nocolor}\n"
-				# returnVal=true
+				groupCreated=true
 			else
 				printf "${c__error}failed${nocolor}\n"
-				returnVal=false
+				groupCreated=false
+				errors+=("Group $groupName not created")
 			fi
 		fi
 
@@ -123,6 +140,7 @@ Main() {
 				else
 					printf "${c__error}failed${nocolor}\n"
 					userCreated=false
+					errors+=("User $usrname not created")
 				fi
 			else
 				userCreated=false
@@ -139,13 +157,12 @@ Main() {
 					# return 0
 				else
 					printf "${c__error}failed${nocolor}\n"
+					errors+=("User $usrname not added to group $groupName")
 					# return 1
 				fi
 			fi
 
 		done
-
-		printf "\n"
 	done
 }
 
@@ -170,7 +187,9 @@ ${nocolor}\n"
 }
 
 ## -----------------------------------------------------------------------
-StartText
+if [[ silent = false ]]; then
+	StartText
+fi
 # Récupération des paramètres en utilisant getopts
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -183,8 +202,10 @@ while [[ $# -gt 0 ]]; do
     -g | --groups)
       shift
       groupstring=$1
-    #   allowed_groups=($(echo "$1" | tr ',' ' '))
       ;;
+	--silent)
+	  silent=true
+	  ;;
     -h | --help)
 	HowToUse
 	exit 0
@@ -198,5 +219,11 @@ while [[ $# -gt 0 ]]; do
 done
 
 CheckMandatoryParams
+if [ $? -eq 1 ]; then
+	# HowToUse
+	exit 1
+fi
 
 Main
+
+GenerateErrorLogs $actualpwd/logs/init-users-error.log

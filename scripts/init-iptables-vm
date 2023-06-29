@@ -4,23 +4,23 @@
 # $1 : IP address
 # $2 : Port
 ssh_port=$1
-network_cidr=$2
+network_host=$2
 bastion=$3
 
 # Check if sshPort not empty
 if [ -z "$ssh_port" ]; then
-	printf "ERROR: sshPort is empty\n";
+	printf "ERROR: ssh_port is empty\n";
 	exit 1;
 fi
 
-if [ -z "$network_cidr" ]; then
-	printf "ERROR: networkCIDR is empty\n";
+if [ -z "$network_host" ]; then
+	printf "ERROR: network host is empty\n";
 	exit 1;
 fi
 
 # Check if localhostIP not empty
 if [ -z "$bastion" ]; then
-	printf "ERROR: localhostIP is empty\n";
+	printf "ERROR: bastion is empty\n";
 	exit 1;
 fi
 
@@ -32,7 +32,7 @@ iptables -t filter -A OUTPUT -p icmp -j ACCEPT
 iptables -I INPUT -p tcp --dport $ssh_port -j DROP
 iptables -I INPUT -s $bastion -p tcp --dport $ssh_port -j ACCEPT
 # VM entries
-iptables -I INPUT -s $network_cidr -p tcp --dport $ssh_port -j ACCEPT
+iptables -I INPUT -s $network_host -p tcp --dport $ssh_port -j ACCEPT
 
 # List all rules
 iptables -L --line-numbers

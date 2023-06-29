@@ -41,6 +41,8 @@ commandName=`basename "$commandPath"`
 pwd=$(pwd)
 actualpwd=$(pwd)
 
+silent=false
+
 ##############
 ## ARGUMENTS
 ##############
@@ -53,8 +55,7 @@ CheckIptables() {
 	# Vérification des paramètres obligatoires
 	printf "${c__fctAction}Checking iptables ...${nocolor}\n"
 	if [[ -z $ssh_port ]]; then
-		printf "${c__error}iptables not found${nocolor}
-		\n"
+		printf "${c__error}iptables not found${nocolor}\n"
 		exit 1
 	else
 		printf "${c__fct2}iptables found${nocolor}\n"
@@ -149,7 +150,6 @@ ManageSSH(){
 
 
 StartText () {
-clear
 printf "${blue}$commandName${whiitebold} script ${nocolor}
 
 ${whiitebold}This script is used to configure iptables on PROXMOX server.
@@ -173,7 +173,9 @@ ${nocolor}\n"
 ## ------------------------------------------------------------------------------------------------------------------------------------ ##
 
 # CheckIfRoot
-StartText
+if [[ silent == false ]]; then
+	StartText
+fi
 
 CheckIptables
 
@@ -196,7 +198,11 @@ while [[ $# -gt 0 ]]; do
 	  shift
 	  bastion=$1
 	  ;;
-    --help)
+    --silent)
+		shift
+		silent=true
+		;;
+	--help)
 	HowToUse
 	exit 0
 		;;
