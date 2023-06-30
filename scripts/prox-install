@@ -1,5 +1,11 @@
 #!/bin/bash
 
+if [ "$EUID" -ne 0 ]; then
+	printf "${red}Please run this script as root.${nocolor}\n"
+	errors+=("Run this script as root")
+	exit 1
+fi
+
 ############
 ## COLORS ##
 ############
@@ -61,7 +67,7 @@ LoadConfig(){
 	. ./prox.conf
 
 	if [ $proxmox == false ] && [ $init_iptables == false ] && [ $init_users == false ] && [ $init_ssh == false ]; then
-		printf "${orange}No action requested. In ${whiitebold}prox.conf${orange}, enable at least one ${whiitebold}init_*${orange} parameter${nocolor}\n"
+		printf "${orange}No action parameter active. In ${whiitebold}prox.conf${orange}, enable at least one ${whiitebold}init_*${orange} parameter${nocolor}\n"
 		exit 1
 	else
 		printf "${c__success}Configuration loaded${nocolor}\n"
@@ -120,7 +126,7 @@ InitUsers() {
 	printf "${c__fctName}Users initialization${nocolor}"
 	if [ $init_users == true ]; then
 		printf "\n"
-		bash init-users --create -g $groups_str
+		bash init-users --groups $groups_str
 		if [ $? -eq 1 ]; then
 			printf "${c__error}user ${whiitebold}$user${c__error} not exist${nocolor}\n"
 			return 1
@@ -204,27 +210,27 @@ Main(){
 	## > USERS INITIALIZATION
 	InitUsers
 	if [ $? -eq 1 ]; then
-		# printf "${c__error}Users initialization failed${nocolor}\n"
+		printf "${c__error}Users initialization failed${nocolor}\n"
 		return 1
 	fi
 	printf "\n"
 	## < USERS INITIALIZATION
 
-	## > SSH CONFIG
-	InitSSH
-	if [ $? -eq 1 ]; then
-		# printf "${c__error}SSH initialization failed${nocolor}\n"
-		return 1
-	fi
-	## < SSH CONFIG
+	# ## > SSH CONFIG
+	# InitSSH
+	# if [ $? -eq 1 ]; then
+	# 	printf "${c__error}SSH initialization failed${nocolor}\n"
+	# 	return 1
+	# fi
+	# ## < SSH CONFIG
 
-	## > IPTABLES CONFIG
-	InitIptables
-	if [ $? -eq 1 ]; then
-		# printf "${c__error}Iptables initialization failed${nocolor}\n"
-		return 1
-	fi
-	## < IPTABLES CONFIG
+	# ## > IPTABLES CONFIG
+	# InitIptables
+	# if [ $? -eq 1 ]; then
+	# 	printf "${c__error}Iptables initialization failed${nocolor}\n"
+	# 	return 1
+	# fi
+	# ## < IPTABLES CONFIG
 }
 
 StartText () {

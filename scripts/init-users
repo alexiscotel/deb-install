@@ -1,7 +1,10 @@
 #!/bin/bash
 
-# create a script to add users to groups
-# add-user-to-group group1:username1,username2,group2:username3,username4
+# if [ "$EUID" -ne 0 ]; then
+# 	printf "${red}Please run this script as root.${nocolor}\n"
+# 	g_errors+=("Run this script as root")
+# 	exit 1
+# fi
 
 ############
 ## COLORS ##
@@ -29,41 +32,89 @@ c__fctAction=$graydim
 c__fct2=$gray
 c__msgVar=$graybold
 c__value=$blue
+c__value2=$purple
 c__error=$red
 c__warning=$orange
 c__success=$green
 
 
 ## VARIABLES
+repSkell="files/etc/skel"
 pwd=$(pwd)
 actualpwd=$(pwd)
-
-errors=()
+g_errors=()
 
 ###############
 ## PARAMETERS
 ###############
 commandPath=$0
 commandName=`basename "$commandPath"`
-groupstring=
+create=false
+delete=false
+groupstring=""
 silent=false
+verbose=false
 
 ##############
 ## FUNCTIONS
 ##############
-GenerateErrorLogs() {
-	local file=$1
-	
-	if [ ! -f $file ]; then
-		touch $file
-	fi
 
-	if [ ${#errors[@]} -gt 0 ]; then
-		printf "%s\n" "${errors[@]}" > $file
-	fi
+ManageSkelFiles() {
+	printf "${c__fctName}Load skel files${nocolor}\n"
+
+	find "$repSkell" -type f | while read -r file; do
+		local filename=$(basename "$file")
+		
+		printf "  ${c__fctAction}/etc/skel/${c__msgVar}${filename}"
+		if [ -f "/etc/skel/$filename" ]; then
+			printf "${c__fctAction} ...${nocolor}"
+
+			mv "/etc/skel/$filename" "/etc/skel/$filename.bak" > /dev/null 2>&1
+			local result=$?
+			if [ $result -eq 0 ]; then
+				printf "${c__success} saved${nocolor}"
+			else
+				printf "${c__error} save failed${nocolor}"
+				g_errors+=("renamed failed")
+			fi
+		else
+			printf "\n   ${yellow}not found ${c__fctAction}in ${c__fct2}/etc/skel${nocolor}"
+		fi
+		cp "files/etc/skel/$filename" "/etc/skel/$filename" > /dev/null 2>&1
+		result=$?
+		if [ $result -eq 0 ]; then
+			printf "${c__fctAction} - ${c__success}copied${nocolor}\n"
+		else
+			printf "${c__fctAction} - ${c__error}copy failed${nocolor}\n"
+			g_errors+=("Failed to copy /etc/skel/$filename")
+		fi
+	done
+	
+	# find "$repSkell" -type f | while read -r file; do
+	# 	local filename=$(basename "$file")
+	# 	if [ -f "/etc/skel/$filename" ]; then
+	# 		printf "  ${c__fctAction}Copying  ${c__msgVar}${filename} ${c__fctAction}...${nocolor}"
+	# 		cp "/etc/skel/$filename" "/etc/skel/$filename" # > /dev/null 2>&1
+	# 		local result=$?
+	# 		if [ $result -eq 0 ]; then
+	# 			printf "${c__success} done${nocolor}\n"
+	# 		else
+	# 			printf "${c__error} failed${nocolor}\n"
+	# 			g_errors+=("Failed to copy /etc/skel/$filename")
+	# 		fi
+	# 	else
+	# 		printf "  ${c__fctAction}File ${c__msgVar}${filename} ${c__warning}not found${nocolor}\n"
+	# 	fi
+	# done
 }
 
-
+CheckIfParameters() {
+	if [ $create == false ] && [ $delete == false ] && [ -z "$groupstring" ] && [ $silent == false ]; then
+		return 1
+	else
+		return 0
+	fi
+}
 CheckMandatoryParams() {
 	if [ -z "$groupstring" ]; then
 		printf "${c__error}parameter ${c__msgVar}-g | --groups${c__error} is mandatory.${nocolor}\n"
@@ -73,123 +124,231 @@ CheckMandatoryParams() {
 
 CheckIfUserExists() {
 	local user=$1
-	printf "${c__fctName}Checking user $user ...${nocolor}\n"
+	# printf "${c__fctAction}Checking user ${c__msgVar}${user}${c__fctAction} ...${nocolor}\n"
+	printf "   ${c__fctAction}${c__msgVar}${user}${c__fctAction} ...${nocolor}"
 	getent passwd $user > /dev/null 2>&1
-	if [ $? -eq 0 ]; then
-		printf "${c__success}user ${whiitebold}$user${c__success} exist${nocolor}\n"
+	local result=$?
+	if [ $result -eq 0 ]; then
+		printf "${c__success} found${nocolor}\n"
 		return 0
 	else
-		printf "${c__warning}user ${whiitebold}$user${c__warning} not exist${nocolor}\n"
+		printf "${c__warning} not found${nocolor}\n"
 		return 1
 	fi
 }
 CheckIfGroupExists() {
 	local group=$1
-	printf "${c__fctName}Checking group $group ...${nocolor}\n"
+	# printf "${c__fctAction}Checking group ${c__msgVar}${group}${c__fctAction} ...${nocolor}"
+	printf "  ${c__fctAction}${c__msgVar}${group}${c__fctAction} ...${nocolor}"
 	getent group $group > /dev/null 2>&1
-	if [ $? -eq 0 ]; then
-		printf "${c__success}group ${whiitebold}$group${c__success} exist${nocolor}\n"
+	local result=$?
+	if [ $result -eq 0 ]; then
+		printf "${c__success} found${nocolor}\n"
 		return 0
 	else
-		printf "${c__warning}group ${whiitebold}$group${c__warning} not exist${nocolor}\n"
+		printf "${c__warning} not found${nocolor}\n"
 		return 1
 	fi
 }
 
 
 
+
+
 Main() {
-	IFS='/' read -r -a groups <<< "${groupstring}"
-	
+	printf "${c__fctName}Start login creation ...${nocolor}\n"
+
+	local cptGroupsCreated=0
+	local cptUsersCreated=0
+
+	IFS=';' read -r -a groups <<< "${groupstring}"
+
 	for grp in "${groups[@]}"; do
 		local groupCreated=false
-		local groupName=$(echo "$grp" | cut -d':' -f1)
-		local users=$(echo "$grp" | cut -d':' -f2)
-		IFS=',' read -r -a usernames <<< "${users}"
-
-		printf "${c__fctName}Group: ${c__value}${groupName}${nocolor}\n"
-
-		## GROUP CREATION
-		CheckIfGroupExists $groupName
-		if [ $? -eq 1 ]; then
-			printf "${c__fctAction}Creating group ${c__msgVar}${groupName}${c__fctAction} ... ${nocolor}"
-			addgroup $groupName > /dev/null 2>&1
-			if [ $? -eq 0 ]; then
-				printf "${c__success}added${nocolor}\n"
-				groupCreated=true
-			else
-				printf "${c__error}failed${nocolor}\n"
-				groupCreated=false
-				errors+=("Group $groupName not created")
-			fi
+		IFS='=' read -r -a a_grp <<< "${grp}"
+		local groupName=${a_grp[0]}
+		local users=${a_grp[1]}
+		
+		if [[ $silent == false ]]; then
+			printf "${c__fctName}Group: ${c__value}${groupName}${nocolor}\n"
 		fi
 
-		printf "\n${c__fctName}Users: ${c__value}${usernames[*]}${nocolor}\n"
-		# ## FOR each USERNAMES
-		for usrname in "${usernames[@]}"; do
-			local userCreated=false
+
+		CheckIfGroupExists $groupName
+		local grpExists=$?
+		if [ $grpExists -eq 1 ]; then
+			if [[ $silent == false ]]; then
+				printf "  ${c__fctAction}Creating ${c__value}${groupName}${c__fctAction} ...${nocolor}"
+			fi
+			## GROUP CREATION
+			groupadd $groupName > /dev/null 2>&1
+			local grpadded=$?
+			if [ $grpadded -eq 0 ]; then
+				if [[ $silent == false ]]; then
+					printf "${c__success} done${nocolor}\n"
+				fi
+				groupCreated=true
+				cptGroupsCreated=$((cptGroupsCreated+1))
+			else
+				if [[ $silent == false ]]; then
+					printf "${c__error} failed${nocolor}\n"
+				fi
+				groupCreated=false
+				g_errors+=("Group $groupName not created")
+			fi
+		else
+			groupCreated=false
+		fi
+
+		if [[ -z "$users" ]]; then
+			if [[ $verbose == true ]]; then
+				printf "${c__fctAction}No users to create${nocolor}\n"
+			fi
+			continue
+		fi
+		IFS=',' read -r -a usernames <<< "${users}"
+
+		if [[ $silent == false ]]; then
+			printf "  ${c__fctName}Users: ${nocolor}"
+			for usrln in "${usernames[@]}"; do
+				local usrnm=$(echo "$usrln" | cut -d'/' -f1)
+				printf "${c__value}${usrnm} ${nocolor}"
+			done
+			printf "\n"
+		fi
+
+		local l_cptUsersCreated=0
+		local l_cptUsersAdded=0
+		for username in "${usernames[@]}"; do
+			userCreated=false
 			
-			## USER CREATION
-			CheckIfUserExists $usrname
-			if [ $? -eq 1 ]; then
-				printf "${c__fctAction}Creating user ${c__msgVar}${usrname}${c__fctAction} ... ${nocolor}"
-				adduser $usrname > /dev/null 2>&1
-				if [ $? -eq 0 ]; then
-					printf "${c__success}added${nocolor}\n"
+			CheckIfUserExists $username
+			local usrExists=$?
+			if [ $usrExists -eq 1 ]; then
+				if [[ $silent == false ]]; then
+					printf "   ${c__fctAction}creating ${c__value}${username}${c__fctAction} ...${nocolor}"
+				fi
+
+				## USER CREATION
+				useradd --create-home $username -G $groupName > /dev/null 2>&1
+				local usradded=$?
+				if [ $usradded -eq 0 ]; then
+					if [[ $silent == false ]]; then
+						printf " ${c__success}done${nocolor}\n"
+						l_cptUsersCreated=$((l_cptUsersCreated+1))
+					fi
 					userCreated=true
+					usrExists=1
 				else
-					printf "${c__error}failed${nocolor}\n"
+					if [[ $silent == false ]]; then
+						printf " ${c__error}failed${nocolor}\n"
+					fi
 					userCreated=false
-					errors+=("User $usrname not created")
+					g_errors+=("User $username not created")
 				fi
 			else
-				userCreated=false
+				# Retrieve the list of groups the user belongs to
+				grps=$(id -nG "$username")
+				# Check if the desired group exists in the list
+				if [[ "$grps" =~ (^| )"$groupName"($| ) ]]; then
+					printf "   ${c__msgVar}${username} ${c__fctAction}already in ${c__msgVar}${groupName}${c__fctAction}${nocolor}\n"
+				else
+					printf "   ${c__fctAction}Inserting ${c__msgVar}${username} ${c__fctAction}to ${c__msgVar}${groupName}${c__fctAction} ...${nocolor}"
+					# sudo usermod -aG ${groupName} ${username} > /dev/null 2>&1
+					usermod -aG ${groupName} ${username}
+					local usrgrp=$?
+					if [ $? -eq 0 ]; then
+						l_cptUsersAdded=$((l_cptUsersAdded+1))
+						printf " ${c__success}done${nocolor}"
+					else
+						printf " ${c__error}failed${nocolor}"
+						g_errors+=("User $username not added to group $groupName")
+					fi
+					printf "\n"
+				fi
+
+
+				# # add user to group
+				# if [[ $silent == false ]]; then
+				# 	printf "   ${c__fctAction}user ${c__value}${username}${c__fctAction} already exists${nocolor}\n"
+				# fi
+
+				# printf "   ${c__fctAction}Inserting user ${c__msgVar}${username} ${c__fctAction}to group ${c__msgVar}${groupName}${c__fctAction} ...${nocolor}"
+				# sudo usermod -aG ${groupName} ${username} > /dev/null 2>&1
+				# local usrgrp=$?
+				# if [ $? -eq 0 ]; then
+				# 	l_cptUsersAdded=$((l_cptUsersAdded+1))
+				# 	printf " ${c__success}added${nocolor}\n"
+				# else
+				# 	printf " ${c__error}failed${nocolor}\n"
+				# 	g_errors+=("User $username not added to group $groupName")
+				# fi
 			fi
 
-			## ADD USER to GROUP
-			if [ $userCreated != true ]; then
-				continue;
-			else
-				printf "${c__fctAction}Inserting user ${c__msgVar}${usrname}${c__fctAction} to group ${c__msgVar}${groupName}${c__fctAction} ... ${nocolor}"
-				sudo usermod -aG ${groupName} ${usrname} > /dev/null 2>&1
-				if [ $? -eq 0 ]; then
-					printf "${c__success}added${nocolor}\n"
-					# return 0
-				else
-					printf "${c__error}failed${nocolor}\n"
-					errors+=("User $usrname not added to group $groupName")
-					# return 1
-				fi
-			fi
+
+			# ## ADD USER to GROUP
+			# if [ $usrExists -eq 1 ] || [ $userCreated == true ]; then
+			# 	printf "   ${c__fctAction}Inserting user ${c__msgVar}${username} ${c__fctAction}to group ${c__msgVar}${groupName}${c__fctAction} ...${nocolor}"
+			# 	# sudo usermod -aG ${groupName} ${username} > /dev/null 2>&1
+			# 	usermod -aG ${groupName} ${username}
+			# 	local usrgrp=$?
+			# 	if [ $? -eq 0 ]; then
+			# 		l_cptUsersAdded=$((l_cptUsersAdded+1))
+			# 		printf " ${c__success}added${nocolor}"
+			# 	else
+			# 		printf " ${c__error}failed${nocolor}"
+			# 		g_errors+=("User $username not added to group $groupName")
+			# 	fi
+			# 	printf "\n"
+			# fi
 
 		done
+
+		cptUsersCreated=$((cptUsersCreated+l_cptUsersCreated))
+
+		if [ $silent == false ] && ([ $l_cptUsersCreated -gt 0 ] || [ $l_cptUsersAdded -gt 0 ]); then
+			printf "${c__success}${groupName}${c__fct2}\n"
+			printf "  ${c__value}${l_cptUsersCreated}${c__fct2} user(s) created\n"
+			printf "  ${c__value}${l_cptUsersAdded}${c__fct2} user(s) added${nocolor}\n"
+			printf "\n"
+		fi
 	done
+
+	if [ $silent == false ] && ([ $cptGroupsCreated -gt 0 ] || [ $cptUsersCreated -gt 0 ]); then
+		printf "${c__fctName}Summary${c__fct2}\n"
+		printf "  ${c__value}${cptGroupsCreated}${c__fct2} group(s) created\n"
+		printf "  ${c__value}${cptUsersCreated}${c__fct2} user(s) created${nocolor}\n"
+		# if [ ${#g_errors[@]} -eq 0 ]; then
+		# 	for err in "${g_errors[@]}"; do
+		# 		printf "  ${c__error}• ${err}${nocolor}\n"
+		# 	done
+		# fi
+		printf "\n"
+	fi
 }
 
 StartText () {
-printf "🔐 ${blue}$commandName script ${nocolor}🔐
-
-${whiitebold}This script is made to create users and groups${nocolor}
-\n"
+	printf "🔐 ${blue}$commandName script ${nocolor}🔐
+	\n"
 }
 HowToUse() {
-printf "❓ ${blue}How to use${gray}
-
-${commandName} --create -g group1:username1,sshuser@ip:port/group2:username3,username4${nocolor}
-
-${whiitebold}Parameters :${gray}
-	--create             : Flag to for creation
-	--delete             : Flag to delete
-    -g  --groups : Allowed groups to connect through SSH
-				(format: --allowed-groups group1:username1,username2/group2:username3,username4)
-    -h  --help          : show this message
-${nocolor}\n"
+	printf "❓ ${blue}How to use${gray}\n"
+	printf "${whiitebold}This script is made to create users and groups${nocolor}\n"
+	printf "\n"
+	printf "${commandName} --groups \"group1=username1,sshuser@ip:port/group2=username3,username1\"${nocolor}"
+	printf "\n"
+	printf "${whiitebold}Parameters :${gray}\n"
+	printf "  -g  --groups : groups to add users\n"
+	printf "                 format: group1=username1,username2;group2=username3,username1\n"
+	printf "  --verbose    : show logs\n"
+	printf "  --silent     : hide logs\n"
+	printf "\n"
+	printf "  -h  --help   : show this message\n"
+	printf "${nocolor}\n"
 }
 
 ## -----------------------------------------------------------------------
-if [[ silent = false ]]; then
-	StartText
-fi
+
 # Récupération des paramètres en utilisant getopts
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -206,7 +365,10 @@ while [[ $# -gt 0 ]]; do
 	--silent)
 	  silent=true
 	  ;;
-    -h | --help)
+    --verbose)
+	  verbose=true
+	  ;;
+	-h | --help)
 	HowToUse
 	exit 0
 		;;
@@ -218,12 +380,26 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
+CheckIfParameters
+if [ $? -eq 1 ]; then
+	StartText
+	HowToUse
+	exit 1
+fi
+
+if [[ $silent == false ]]; then
+	StartText
+fi
+
+
 CheckMandatoryParams
 if [ $? -eq 1 ]; then
 	# HowToUse
 	exit 1
 fi
 
+ManageSkelFiles
+if [[ $silent == false ]]; then
+	printf "\n"
+fi
 Main
-
-GenerateErrorLogs $actualpwd/logs/init-users-error.log

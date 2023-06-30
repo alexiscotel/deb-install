@@ -46,6 +46,7 @@ runningAsRoot=false
 sshdExists=false
 syntaxStatus='invalid'
 verbose=false
+silent=false
 
 
 
@@ -53,6 +54,8 @@ verbose=false
 ## FUNCTIONS ##
 ###############
 CheckMandatoryParams() {
+	local isError=false
+
 	if [[ $verbose = true ]]; then
 		printf "${c__fctName}Checking mandatory parameters ...${nocolor}\n"
 	fi
@@ -74,7 +77,7 @@ CheckMandatoryParams() {
 	
 	if [[ -z $ARG_KEY ]]; then
 		printf "${c__error}parameter ${c__msgVar}-k | --key${c__error} is mandatory.${nocolor}\n"
-		exit 1
+		isError=true
 	else
 
 		if [[ $verbose = true ]]; then
@@ -89,12 +92,16 @@ CheckMandatoryParams() {
 
 	if [[ -z $ARG_VALUE ]]; then
 		printf "${c__error}parameter ${c__msgVar}-v | --value${c__error} is mandatory.${nocolor}\n"
-		exit 1
+		isError=true
 	else
 		
 		if [[ $verbose = true ]]; then
 			printf "${c__fct2}value : ${c__value}${ARG_VALUE}${nocolor}\n"
 		fi
+	fi
+
+	if [[ $isError = true ]]; then
+		exit 1
 	fi
 }
 
@@ -141,7 +148,7 @@ update_sshd_config() {
 
 		# Check if the sed command added a new line
 		if ! grep -q "${key} ${value}" "$ARG_FILE"; then
-			printf "${gray}Key not found.${graydim}${ARG_FILE}${nocolor}\n"
+			printf "${gray}Key not found${graydim} ${ARG_FILE}${nocolor}\n"
 
 			if [ $syntaxStatus = 'unknown' ]; then
 				printf "\n# TO VALIDATE\n${key} ${value}\n" >> "$ARG_FILE"
@@ -173,7 +180,7 @@ ${whiitebold}This script is made for updating SSH configuration${nocolor}\n"
 }
 HowToUse () {
 printf "\n❓ ${blue}How to use${gray}
-${white}${commandName} -k <key> -v <value>${nocolor}\n"
+${white}${commandName} -k <key> -v <value> --verbose --silent${nocolor}\n"
 }
 
 #####
@@ -195,12 +202,6 @@ ${white}${commandName} -k <key> -v <value>${nocolor}\n"
 # else
 # 	sshdExists=true
 # fi
-
-if [[ $# -le 0 ]]; then
-	commandName=$0
-else
-	commandName="ssh-config"
-fi 
 
 # Récupération des paramètres en utilisant getopts
 while [[ $# -gt 0 ]]; do
@@ -225,6 +226,9 @@ while [[ $# -gt 0 ]]; do
 		--verbose)
 			verbose=true
 			;;
+		--silent)
+			slient=true
+			;;
 		*)
 			echo "$commandName - Option invalide: $1"
 			exit 1
@@ -240,11 +244,13 @@ CheckMandatoryParams
 validate_key_syntax "$ARG_KEY" "$ARG_VALUE"
 isValid=$?
 if [ $isValid -eq 1 ]; then
-	printf "${graydim}Cancel update.${nocolor}\n"
+	if [ $silent == false ]; then
+		printf "${graydim}Cancel update.${nocolor}\n"
+	fi
 	exit 0;
 	return
-elif [ $isValid -eq 2 ]; then
-	printf "${orange}Cannot validate syntax. ${graydim}Skip parameters validation.${nocolor}\n"
+elif [ $isValid -eq 2 ] && [ $silent == false ]; then
+	printf "${orange}Cannot validate syntax. ${graydim}Skip.${nocolor}\n"
 fi
 
 update_sshd_config "$ARG_KEY" "$ARG_VALUE"
