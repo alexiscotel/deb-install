@@ -59,6 +59,20 @@ verbose=false
 ## FUNCTIONS
 ##############
 
+CheckIfParameters() {
+	if [ $create == false ] && [ $delete == false ] && [ -z "$groupstring" ] && [ $silent == false ]; then
+		return 1
+	else
+		return 0
+	fi
+}
+CheckMandatoryParams() {
+	if [ -z "$groupstring" ]; then
+		printf "${c__error}parameter ${c__msgVar}-g | --groups${c__error} is mandatory.${nocolor}\n"
+		return 1
+	fi
+}
+
 ManageSkelFiles() {
 	printf "${c__fctName}Load skel files${nocolor}\n"
 
@@ -106,20 +120,6 @@ ManageSkelFiles() {
 	# 		printf "  ${c__fctAction}File ${c__msgVar}${filename} ${c__warning}not found${nocolor}\n"
 	# 	fi
 	# done
-}
-
-CheckIfParameters() {
-	if [ $create == false ] && [ $delete == false ] && [ -z "$groupstring" ] && [ $silent == false ]; then
-		return 1
-	else
-		return 0
-	fi
-}
-CheckMandatoryParams() {
-	if [ -z "$groupstring" ]; then
-		printf "${c__error}parameter ${c__msgVar}-g | --groups${c__error} is mandatory.${nocolor}\n"
-		return 1
-	fi
 }
 
 CheckIfUserExists() {
@@ -266,41 +266,7 @@ Main() {
 					fi
 					printf "\n"
 				fi
-
-
-				# # add user to group
-				# if [[ $silent == false ]]; then
-				# 	printf "   ${c__fctAction}user ${c__value}${username}${c__fctAction} already exists${nocolor}\n"
-				# fi
-
-				# printf "   ${c__fctAction}Inserting user ${c__msgVar}${username} ${c__fctAction}to group ${c__msgVar}${groupName}${c__fctAction} ...${nocolor}"
-				# sudo usermod -aG ${groupName} ${username} > /dev/null 2>&1
-				# local usrgrp=$?
-				# if [ $? -eq 0 ]; then
-				# 	l_cptUsersAdded=$((l_cptUsersAdded+1))
-				# 	printf " ${c__success}added${nocolor}\n"
-				# else
-				# 	printf " ${c__error}failed${nocolor}\n"
-				# 	g_errors+=("User $username not added to group $groupName")
-				# fi
 			fi
-
-
-			# ## ADD USER to GROUP
-			# if [ $usrExists -eq 1 ] || [ $userCreated == true ]; then
-			# 	printf "   ${c__fctAction}Inserting user ${c__msgVar}${username} ${c__fctAction}to group ${c__msgVar}${groupName}${c__fctAction} ...${nocolor}"
-			# 	# sudo usermod -aG ${groupName} ${username} > /dev/null 2>&1
-			# 	usermod -aG ${groupName} ${username}
-			# 	local usrgrp=$?
-			# 	if [ $? -eq 0 ]; then
-			# 		l_cptUsersAdded=$((l_cptUsersAdded+1))
-			# 		printf " ${c__success}added${nocolor}"
-			# 	else
-			# 		printf " ${c__error}failed${nocolor}"
-			# 		g_errors+=("User $username not added to group $groupName")
-			# 	fi
-			# 	printf "\n"
-			# fi
 
 		done
 
@@ -335,7 +301,7 @@ HowToUse() {
 	printf "❓ ${blue}How to use${gray}\n"
 	printf "${whiitebold}This script is made to create users and groups${nocolor}\n"
 	printf "\n"
-	printf "${commandName} --groups \"group1=username1,sshuser@ip:port/group2=username3,username1\"${nocolor}"
+	printf "${commandName} --groups \"group1=username1,sshuser@ip:port/group2=username3,username1\"${nocolor}\n"
 	printf "\n"
 	printf "${whiitebold}Parameters :${gray}\n"
 	printf "  -g  --groups : groups to add users\n"

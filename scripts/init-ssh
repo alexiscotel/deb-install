@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# if [ "$EUID" -ne 0 ]; then
+# 	printf "${red}Please run this script as root.${nocolor}\n"
+# 	g_errors+=("Run this script as root")
+# 	exit 1
+# fi
+
 ############
 ## COLORS ##
 ############
@@ -66,6 +72,8 @@ gentenvInvalid=false
 verbose=false
 silent=false
 
+## FUNCTIONS
+
 function join_by {
   local d=${1-} f=${2-}
   if shift 2; then
@@ -73,14 +81,13 @@ function join_by {
   fi
 }
 
-CheckIfRoot() {
-	if [ "$EUID" -ne 0 ]; then
-	    printf "${red}Please run this script as root.${nocolor}\n"
-		errors+=("Run this script as root")
-	    exit 1
+CheckIfParameters() {
+	if [ -z "$ssh_port" ] && [ -z "$network_cidr" ] && [ -z "$localhost_ip" ] && [ -z "$bastion" ] && [ "${#allowed_users[@]}" -eq 0 ] && [ "${#allowed_groups[@]}" -eq 0 ] && [ "${#denied_users[@]}" -eq 0 ] && [ "${#denied_groups[@]}" -eq 0 ] && [ $silent == false ]; then
+		return 1
+	else
+		return 0
 	fi
 }
-
 CheckMandatoryParams() {
 	local isError=false
 	if [ $verbose == true ] && [ $silent == false ]; then
@@ -131,82 +138,34 @@ printf "
 ##########
 ## USERS 
 ##########
-CheckIfUserExists() {
-	local user=$1
-	if [ $silent == false ]; then
-		printf "${c__fctName}Checking user $user ...${nocolor}\n"
-	fi
+
+CheckIfItemExists() {
+	local item=$1
 
 	if ! command -v getent > /dev/null; then
 		gentenvInvalid=true
-		printf "${c__error}command getenv not found${nocolor}\n"
+		if [ $verbose == true ]; then
+			printf "${c__error}command getenv not found${nocolor}\n"
+		fi
 		return 2
 	else
 		gentenvInvalid=false
 	fi
 
-	getent passwd $user > /dev/null
-	if [ $? -eq 0 ]; then
-		if [ $silent == false ]; then
-			printf "${c__success}user ${whiitebold}$user${c__success} exist${nocolor}\n"
-		fi
+	printf "   ${c__fctAction}${c__msgVar}${item}${c__fctAction} ...${nocolor}"
+	getent passwd $item > /dev/null 2>&1
+	local result=$?
+	if [ $result -eq 0 ]; then
+		printf "${c__success} found${nocolor}\n"
 		return 0
 	else
-		if [ $silent == false ]; then
-			printf "${c__error}user ${whiitebold}$user${c__error} not exist${nocolor}\n"
-		fi
-		return 1
-	fi
-}
-CheckIfGroupExists() {
-	local group=$1
-	if [ $silent == false ]; then
-		printf "${c__fctName}Checking group $group ...${nocolor}\n"
-	fi
-
-	if ! command -v getent > /dev/null; then
-		gentenvInvalid=true
-		printf "${c__error}command getenv not found${nocolor}\n"
-		return 2
-	else
-		gentenvInvalid=false
-	fi
-	
-	getent group $group > /dev/null
-	if [ $? -eq 0 ]; then
-		
-		if [ $silent == false ]; then
-			printf "${c__success}group ${whiitebold}$group${c__success} exist${nocolor}\n"
-		fi
-		return 0
-	else
-		if [ $silent == false ]; then
-			printf "${c__error}group ${whiitebold}$group${c__error} not exist${nocolor}\n"
-		fi
+		printf "${c__warning} not found${nocolor}\n"
 		return 1
 	fi
 }
 
 
-CheckAllowUsers() {
-	for usr in "${allowed_users[@]}"; do
-		if [ $gentenvInvalid == false ]; then
-			CheckIfUserExists $usr
-			local test=$?
-			if [ $test -eq 0 ]; then
-				existing_allowed_users+=("$usr")
-			elif [ $test -eq 2 ]; then
-				if [ $silent == false ]; then
-					printf "${c__warning}check for \"${usr}\" fail${nocolor}\n"
-				fi
-			fi
-		else
-			if [ $silent == false ]; then
-				printf "${c__notice}check skip for ${whiitebold}\"${usr}\"${nocolor}\n"
-			fi
-		fi
-	done
-}
+
 ManageAllowUsers() {
 	if [[ ${#existing_allowed_users[@]} -gt 0 ]]; then
 		if [ $silent == false ]; then
@@ -225,7 +184,7 @@ ManageAllowUsers() {
 CheckAllowGroups() {
 	for grp in "${allowed_groups[@]}"; do
 		if [ $gentenvInvalid == false ]; then
-			CheckIfGroupExists $grp
+			CheckIfItemExists $grp
 			local test=$?
 			if [ $test -eq 0 ]; then
 				existing_allowed_groups+=("$grp")
@@ -259,7 +218,7 @@ ManageAllowGroups() {
 CheckDeniedUsers() {
 	for usr in "${denied_users[@]}"; do
 		if [ $gentenvInvalid == false ]; then
-			CheckIfUserExists $usr
+			CheckIfItemExists $usr
 			local test=$?
 			if [ $test -eq 0 ]; then
 				existing_denied_users+=("$usr")
@@ -293,7 +252,7 @@ ManageDeniedUsers() {
 CheckDeniedGroups() {
 	for grp in "${denied_groups[@]}"; do
 		if [ $gentenvInvalid == false ]; then
-			CheckIfGroupExists $grp
+			CheckIfItemExists $grp
 			local test=$?
 			if [ $test -eq 0 ]; then
 				existing_denied_groups+=("$grp")
@@ -407,32 +366,31 @@ GenerateErrorLogs() {
 StartText () {
 # clear
 printf "🔐 ${blue}$commandName script ${nocolor}🔐
-
-${whiitebold}This script is made for easily configure .bashrc
-Get a prettier shell than the default one 😎
-Follow the next steps to configure it !${nocolor}
-${yellow}TODO: implements fail2ban security${nocolor}
 \n"
 }
 HowToUse() {
-printf "❓ ${blue}How to use${gray}
-
-${commandName} -p 2222 -n 192.168.0.1/24 -u username1,sshuser@ip:port -g group1,group2 -U username3,sshuser@ip:port -G group4${nocolor}
-
-${whiitebold}Parameters :${gray}
-    -p  --ssh-port     : SSH port
-    -n  --network-host : Network host
-
-    -u  --allow-users  : Allowed users to connect through SSH
-    -g  --allow-groups : Allowed groups to connect through SSH
-    -U  --deny-users   : Denied users to connect through SSH
-    -G  --deny-groups  : Denied groups to connect through SSH
-
-	--verbose          : Display logs
-	--silent           : Don't display logs
-
-    -h  --help         : show this message
-${nocolor}\n"
+	printf "❓ ${blue}How to use${gray}\n"
+	printf "${whiitebold}This script is made to init ssh configuration\n"
+  	printf "  - It will update ssh port\n"
+	printf "  - It will update network configuration\n"
+	printf "  - It will allow users and groups to connect${nocolor}\n"
+	printf "\n"
+	printf "${commandName} -p 2222 -n 192.168.0.1/24 -u username1,sshuser@ip:port -g group1,group2 -U username3,sshuser@ip:port -G group4${nocolor}"
+	printf "\n"
+	printf "${whiitebold}Parameters :${gray}\n"
+	printf "  -g  --ssh-port     : SSH port\n"
+	printf "  -g  --network-host : Network host\n"
+	printf "\n"
+	printf "  -g  --allow-users  : Allowed users to connect through SSH\n"
+	printf "  -g  --allow-groups : Allowed groups to connect through SSH\n"
+	printf "  -g  --deny-users   : Denied users to connect through SSH\n"
+	printf "  -g  --deny-groups  : Denied groups to connect through SSH\n"
+	printf "\n"
+	printf "  --verbose    : show logs\n"
+	printf "  --silent     : hide logs\n"
+	printf "\n"
+	printf "  -h  --help   : show this message\n"
+	printf "${nocolor}\n"
 }
 
 ## ------------------------------------------------------------------------------------------------------------------------------------ ##
@@ -485,9 +443,14 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-# CheckIfRoot
+CheckIfParameters
+if [ $? -eq 1 ]; then
+	StartText
+	HowToUse
+	exit 1
+fi
+
 if [[ $silent == false ]]; then
-	clear
 	StartText
 fi
 
