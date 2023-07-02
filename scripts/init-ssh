@@ -59,10 +59,15 @@ denied_groups=()
 existing_denied_groups=()
 
 
-##############
+##########################################
 ## VARIABLES
-##############
-sshd_config="../files/etc/ssh/sshd_config"
+##########################################
+## EDITABLES (does match with system file)
+# sshd_config="../files/etc/ssh/sshd_config"
+# hosts_allow="../files/etc/hosts.allow"
+sshd_config="/etc/ssh/sshd_config"
+hosts_allow="/etc/hosts.allow"
+
 PWD=$(pwd)
 errors=()
 pwd=$(pwd)
@@ -72,8 +77,9 @@ gentenvInvalid=false
 verbose=false
 silent=false
 
+##########################################
 ## FUNCTIONS
-
+##########################################
 function join_by {
   local d=${1-} f=${2-}
   if shift 2; then
@@ -128,9 +134,7 @@ CheckMandatoryParams() {
 		exit 1
 	else
 		if [ $verbose == true ] && [ $silent == false ]; then
-printf "
-  ${c__success}Mandatory parameters OK${nocolor}
-"
+			printf "\n  ${c__success}Mandatory parameters OK${nocolor}\n"
 		fi
 	fi
 }
@@ -149,10 +153,13 @@ CheckIfItemExists() {
 		fi
 		return 2
 	else
+		if [ $verbose == true ]; then
+			printf "${c__fctAction}command getenv found${nocolor}\n"
+		fi
 		gentenvInvalid=false
 	fi
 
-	printf "   ${c__fctAction}${c__msgVar}${item}${c__fctAction} ...${nocolor}"
+	printf "   ${c__msgVar}${item}${c__fctAction} ...${nocolor}"
 	getent passwd $item > /dev/null 2>&1
 	local result=$?
 	if [ $result -eq 0 ]; then
@@ -165,14 +172,38 @@ CheckIfItemExists() {
 }
 
 
-
+CheckAllowUsers() {
+	for usr in "${allowed_users[@]}"; do
+		if [ $gentenvInvalid == false ]; then
+			CheckIfItemExists $usr
+			local test=$?
+			if [ $test -eq 0 ]; then
+				existing_allowed_users+=("$usr")
+			elif [ $test -eq 2 ]; then
+				if [ $silent == false ]; then
+					printf "${c__warning}check for \"${usr}\" fail${nocolor}\n"
+				fi
+			fi
+		else
+			if [ $silent == false ]; then
+				printf "${c__notice}check skip for ${whiitebold}\"${usr}\"${nocolor}\n"
+			fi
+		fi
+	done
+}
 ManageAllowUsers() {
 	if [[ ${#existing_allowed_users[@]} -gt 0 ]]; then
 		if [ $silent == false ]; then
 			printf "${c__fctName}Manage allowed users ...${nocolor}\n"
 		fi
-		
-		bash ./update-ssh-config -k AllowUsers -v $(join_by , "${existing_allowed_users[@]}")
+
+		if [ $silent == true ]; then
+			bash ./update-config -k AllowUsers -v $(join_by , "${existing_allowed_users[@]}") -f "$sshd_config" --silent
+		elif [ $verbose == true ]; then
+			bash ./update-config -k AllowUsers -v $(join_by , "${existing_allowed_users[@]}") -f "$sshd_config" --verbose
+		else
+			bash ./update-config -k AllowUsers -v $(join_by , "${existing_allowed_users[@]}") -f "$sshd_config"
+		fi
 	else
 		if [ $silent == false ]; then
 			printf "${c__fctAction}No existing allowed users to manage${nocolor}\n"
@@ -206,7 +237,7 @@ ManageAllowGroups() {
 			printf "${c__fctName}Manage allowed groups ...${nocolor}\n"
 		fi
 
-		bash ./update-ssh-config -k AllowGroups -v $(join_by , "${existing_allowed_groups[@]}")
+		bash ./update-config -k AllowGroups -v $(join_by , "${existing_allowed_groups[@]}")
 	else
 		if [ $silent == false ]; then
 			printf "${c__fctAction}No existing allowed groups to manage${nocolor}\n"
@@ -240,7 +271,7 @@ ManageDeniedUsers() {
 			printf "${c__fctName}Manage denied users ...${nocolor}\n"
 		fi
 		
-		bash ./update-ssh-config -k DenyUsers -v $(join_by , "${existing_denied_users[@]}")
+		bash ./update-config -k DenyUsers -v $(join_by , "${existing_denied_users[@]}")
 	else
 		if [ $silent == false ]; then
 			printf "${c__fctAction}No existing denied users to manage${nocolor}\n"
@@ -274,7 +305,7 @@ ManageDeniedGroups() {
 			printf "${c__fctName}Manage denied groups ...${nocolor}\n"
 		fi
 
-		bash ./update-ssh-config -k DenyGroups -v $(join_by , "${existing_denied_groups[@]}")
+		bash ./update-config -k DenyGroups -v $(join_by , "${existing_denied_groups[@]}")
 	else
 		if [ $silent == false ]; then
 			printf "${c__fctAction}No existing denied groups to manage${nocolor}\n"
@@ -287,18 +318,23 @@ ManageDeniedGroups() {
 ## SSH
 ########
 ManageSSH() {
-	if [ $silent == false ]; then
-		printf "${c__fctName}Update ssh port ...${nocolor}\n"
+	if [[ -z $ssh_port ]]; then
+		return 0
 	fi
 
-	if [ $silent == true ] && [ $verbose == true ]; then
-		bash ./update-ssh-config -k Port -v $ssh_port --verbose --silent
-	elif [ $silent == true ]; then
-		bash ./update-ssh-config -k Port -v $ssh_port --silent
+	if [ $silent == false ]; then
+		printf "\n${c__fctName}Update ssh port...${nocolor}\n"
+	fi
+
+	# if [ $silent == true ] && [ $verbose == true ]; then
+	# 	bash ./update-config -k Port -v $ssh_port --verbose --silent
+	# elif [ $silent == true ]; then
+	if [ $silent == true ]; then
+		bash ./update-config -k Port -v $ssh_port -f "$sshd_config" --silent
 	elif [ $verbose == true ]; then
-		bash ./update-ssh-config -k Port -v $ssh_port --verbose
+		bash ./update-config -k Port -v $ssh_port -f "$sshd_config" --verbose
 	else
-		bash ./update-ssh-config -k Port -v $ssh_port
+		bash ./update-config -k Port -v $ssh_port -f "$sshd_config"
 	fi
 }
 
@@ -306,28 +342,46 @@ ManageSSH() {
 ## NETWORK
 ########
 ManageNetwork() {
-	if [ $silent == false ]; then
-		printf "${c__fctName}Manage network ...${nocolor}\n"
+	if [[ -z $network_cidr ]]; then
+		return 0
 	fi
 
-	if [ -f "/etc/hosts.allow" ]; then
-		echo "sshd: 10.10.200.0/24 : ALLOW" >> "/etc/hosts.allow"
-		if [ $silent == false ]; then
-			printf "${c__success}file \"/etc/hosts.allow\" updated${nocolor}\n"
+	if [ $silent == false ]; then
+		printf "\n${c__fctName}Manage network ...${nocolor}\n"
+	fi
+
+	if [ -f "$hosts_allow" ]; then
+
+		# find in file if network_cidr already exists
+		local found=$(grep -c "$network_cidr" "$hosts_allow")
+		if [ $found -eq 0 ]; then
+			if [ $silent == false ]; then
+				printf "${c__fctAction}Add network_cidr ${c__value}${network_cidr}${nocolor} to ${c__msgVar}${hosts_allow}${nocolor}\n"
+			fi
+			echo "sshd: $network_cidr : ALLOW" >> "$hosts_allow"
+		else
+			if [ $silent == false ]; then
+				printf "${c__fctAction}Network_cidr ${c__value}${network_cidr}${nocolor} already exists in ${c__msgVar}${hosts_allow}${nocolor}\n"
+			fi
 		fi
+
+		# echo "sshd: $network_cidr : ALLOW" >> "$hosts_allow"
+		# if [ $silent == false ]; then
+		# 	printf "${c__success}file \"$hosts_allow\" updated${nocolor}\n"
+		# fi
 	else
 		if [ $silent == false ]; then
-			printf "${c__error}file \"/etc/hosts.allow\" does not exists. ${graydim}Skip${nocolor}\n"
+			printf "${c__error}file \"$hosts_allow\" does not exists. ${graydim}Skip${nocolor}\n"
 		fi
 	fi
 	# if [ $silent == true ] && [ $verbose == true ]; then
-	# 	bash ./update-ssh-config -k Port -v $ssh_port --verbose --silent
+	# 	bash ./update-config -k Port -v $ssh_port --verbose --silent
 	# elif [ $silent == true ]; then
-	# 	bash ./update-ssh-config -k Port -v $ssh_port --silent
+	# 	bash ./update-config -k Port -v $ssh_port --silent
 	# elif [ $verbose == true ]; then
-	# 	bash ./update-ssh-config -k Port -v $ssh_port --verbose
+	# 	bash ./update-config -k Port -v $ssh_port --verbose
 	# else
-	# 	bash ./update-ssh-config -k Port -v $ssh_port
+	# 	bash ./update-config -k Port -v $ssh_port
 	# fi
 }
 
@@ -364,9 +418,7 @@ GenerateErrorLogs() {
 
 
 StartText () {
-# clear
-printf "🔐 ${blue}$commandName script ${nocolor}🔐
-\n"
+	printf "🔐 ${blue}$commandName script ${nocolor}🔐\n"
 }
 HowToUse() {
 	printf "❓ ${blue}How to use${gray}\n"
@@ -378,13 +430,13 @@ HowToUse() {
 	printf "${commandName} -p 2222 -n 192.168.0.1/24 -u username1,sshuser@ip:port -g group1,group2 -U username3,sshuser@ip:port -G group4${nocolor}"
 	printf "\n"
 	printf "${whiitebold}Parameters :${gray}\n"
-	printf "  -g  --ssh-port     : SSH port\n"
-	printf "  -g  --network-host : Network host\n"
+	printf "  -p  --ssh-port     : SSH port\n"
+	printf "  -n  --network-host : Network host\n"
 	printf "\n"
-	printf "  -g  --allow-users  : Allowed users to connect through SSH\n"
+	printf "  -u  --allow-users  : Allowed users to connect through SSH\n"
 	printf "  -g  --allow-groups : Allowed groups to connect through SSH\n"
-	printf "  -g  --deny-users   : Denied users to connect through SSH\n"
-	printf "  -g  --deny-groups  : Denied groups to connect through SSH\n"
+	printf "  -U  --deny-users   : Denied users to connect through SSH\n"
+	printf "  -G  --deny-groups  : Denied groups to connect through SSH\n"
 	printf "\n"
 	printf "  --verbose    : show logs\n"
 	printf "  --silent     : hide logs\n"
@@ -393,7 +445,12 @@ HowToUse() {
 	printf "${nocolor}\n"
 }
 
+
+
+
 ## ------------------------------------------------------------------------------------------------------------------------------------ ##
+
+
 
 # Récupération des paramètres en utilisant getopts
 while [[ $# -gt 0 ]]; do
@@ -454,47 +511,47 @@ if [[ $silent == false ]]; then
 	StartText
 fi
 
-CheckMandatoryParams
+# CheckMandatoryParams
+
+
+ManageSSH
+ManageNetwork
+
 
 if [[ "${#allowed_users[@]}" -gt 0 ]]; then
 	if [ $silent == false ]; then
-		printf "${blue}Checking allow users ...${nocolor}\n"
+		printf "${c__fctName}Checking allow users ...${nocolor}\n"
 	fi
 	CheckAllowUsers
 	ManageAllowUsers
-elif [ $verbose == true ]; then
-	printf "${c__notice}no allowed users to manage${nocolor}\n"
+# elif [ $verbose == true ]; then
+# 	printf "${c__fctAction}no allowed users to manage${nocolor}\n"
 fi
 
 
 if [[ "${#allowed_groups[@]}" -gt 0 ]]; then
-	printf "${blue}Checking allow groups ...${nocolor}\n"
+	printf "${c__fctName}Checking allow groups ...${nocolor}\n"
 	CheckAllowGroups
 	ManageAllowGroups
-elif [ $verbose == true ]; then
-	printf "${c__notice}no allowed groups to create${nocolor}\n"
+# elif [ $verbose == true ]; then
+# 	printf "${c__fctAction}no allowed groups to create${nocolor}\n"
 fi
 
 if [[ "${#denied_users[@]}" -gt 0 ]]; then
-	printf "${blue}Checking denied users ...${nocolor}\n"
+	printf "${c__fctName}Checking denied users ...${nocolor}\n"
 	CheckDeniedUsers
 	ManageDeniedUsers
-elif [ $verbose == true ]; then
-	printf "${c__notice}no denied users to create${nocolor}\n"
+# elif [ $verbose == true ]; then
+# 	printf "${c__fctAction}no denied users to create${nocolor}\n"
 fi
 
 if [[ "${#denied_groups[@]}" -gt 0 ]]; then
-	printf "${blue}Checking denied groups ...${nocolor}\n"
+	printf "${c__fctName}Checking denied groups ...${nocolor}\n"
 	CheckDeniedGroups
 	ManageDeniedGroups
-elif [ $verbose == true ]; then
-	printf "${c__notice}no denied groups to create${nocolor}\n"
+# elif [ $verbose == true ]; then
+# 	printf "${c__fctAction}no denied groups to create${nocolor}\n"
 fi
-
-printf "\n"
-ManageSSH
-printf "\n"
-ManageNetwork
 
 # GenerateErrorLogs $actualpwd/logs/init-ssh-error.log
 

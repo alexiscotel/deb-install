@@ -34,9 +34,10 @@ c__success=$green
 commandPath=$0
 commandName=`basename "$commandPath"`
 # ARG_FILE="../files/etc/ssh/sshd_config"
-ARG_FILE="/etc/ssh/sshd_config"
+ARG_FILE=
 ARG_KEY=
 ARG_VALUE=
+ARG_REPLACE=false
 
 
 ##############
@@ -46,6 +47,7 @@ sshd_path="/usr/sbin/sshd"
 runningAsRoot=false
 sshdExists=false
 syntaxStatus='invalid'
+replace=false
 verbose=false
 silent=false
 
@@ -69,9 +71,6 @@ CheckMandatoryParams() {
 		printf "${c__fctName}Checking mandatory parameters ...${nocolor}\n"
 	fi
 
-	if [[ $verbose = true ]]; then
-		printf "${c__fctAction}Checking for file parameter ...${nocolor}\n"
-	fi
 	if [[ -z $ARG_FILE ]]; then
 		# printf "${c__error}ssh config file is mandatory.${nocolor}\n"
 		printf "${c__error}parameter ${c__msgVar}-f | --file${c__error} is mandatory.${nocolor}\n"
@@ -83,10 +82,6 @@ CheckMandatoryParams() {
 		fi
 	fi
 
-	if [[ $verbose = true ]]; then
-		printf "${c__fctAction}Checking for key parameter ...${nocolor}\n"
-	fi
-	
 	if [[ -z $ARG_KEY ]]; then
 		printf "${c__error}parameter ${c__msgVar}-k | --key${c__error} is mandatory.${nocolor}\n"
 		isError=true
@@ -97,10 +92,6 @@ CheckMandatoryParams() {
 		fi
 	fi
 
-
-	if [[ $verbose = true ]]; then
-		printf "${c__fctAction}Checking for value parameter ...${nocolor}\n"
-	fi
 
 	if [[ -z $ARG_VALUE ]]; then
 		printf "${c__error}parameter ${c__msgVar}-v | --value${c__error} is mandatory.${nocolor}\n"
@@ -151,21 +142,40 @@ validate_key_syntax() {
 update_sshd_config() {
     local key=$1
     local value=$2
+	local file=$3
+
+	# # transform the comma in value by a space
+	value=${value//,/ }
+
+	# check is need to append or replace
+	if [[ "$ARG_REPLACE" == false ]]; then
+		local currentval=$(grep -E "^${key}" "$file")
+		currentval=${currentval//$key/}
+		# # Supprimer les espaces de début de chaîne
+		currentval=${currentval#"${currentval%%[![:space:]]*}"}
+		currentval=${currentval%%[[:space:]]*}
+
+		echo "|$currentval|"
+		if [ -n "$currentval" ]; then
+			value=$(echo "${value} ${currentval}" | tr ' ' '\n' | sort -u | tr '\n' ' ')
+		fi	
+	fi
 
 	# Use sed to find and replace the configuration line, even if it's commented out
 	sed -i "s/^#\?\s*${key}\s*.*/${key} ${value}/" "$ARG_FILE"
 	sedResult=$?
+
 	# Check if the sed command was successful
 	if [ $sedResult -eq 0 ]; then
 
 		# Check if the sed command added a new line
-		if ! grep -q "${key} ${value}" "$ARG_FILE"; then
-			printf "${gray}Key not found${graydim} ${ARG_FILE}${nocolor}\n"
+		if ! grep -q "${key} ${value}" "$file"; then
+			printf "${gray}Key not found${graydim} ${file}${nocolor}\n"
 
 			if [ $syntaxStatus = 'unknown' ]; then
-				printf "\n# TO VALIDATE\n${key} ${value}\n" >> "$ARG_FILE"
+				printf "\n# TO VALIDATE\n${key} ${value}\n" >> "$file"
 			elif [ $syntaxStatus = 'valid' ]; then
-				printf "\n${key} ${value}\n" >> "$ARG_FILE"
+				printf "\n${key} ${value}\n" >> "$file"
 			else
 				printf "${red}synthax invalid${nocolor}\n"
 				exit 1
@@ -173,7 +183,7 @@ update_sshd_config() {
 
 			printf "${green}Add${gray} - Set ${blue}${key} ${purple}${value}${nocolor}\n"
 		else 
-			printf "${yellow}Update${gray} - Set ${blue}${key} ${purple}${value}${gray} ${graydim}${ARG_FILE}${nocolor}\n"
+			printf "${yellow}Update${gray} - Set ${blue}${key} ${purple}${value}${gray} ${graydim}${file}${nocolor}\n"
 		fi
 
 	else
@@ -192,7 +202,7 @@ ${whiitebold}This script is made for updating SSH configuration${nocolor}\n"
 }
 HowToUse () {
 printf "\n❓ ${blue}How to use${gray}
-${white}${commandName} -k <key> -v <value> --verbose --silent${nocolor}\n"
+${white}${commandName} -k <key> -v <value> --replace --verbose --silent${nocolor}\n"
 }
 
 #####
@@ -201,7 +211,7 @@ ${white}${commandName} -k <key> -v <value> --verbose --silent${nocolor}\n"
 
 # Check if the script is being run with root privileges
 if [ "$EUID" -ne 0 ]; then
-    printf "${red}Please run this script as root.${nocolor}\n"
+    printf "${red}Please run ${c__fct2}$commandName${red} as root.${nocolor}\n"
     exit 1
 else
    runningAsRoot=true
@@ -231,6 +241,10 @@ while [[ $# -gt 0 ]]; do
 		-f | --file)
 			shift
 			ARG_FILE=$1
+			;;
+		--replace)
+			shift
+			ARG_REPLACE=true
 			;;
 		-h | --help)
 			StartText
@@ -278,4 +292,4 @@ elif [ $isValid -eq 2 ] && [ $silent == false ]; then
 	printf "${orange}Cannot validate syntax. ${graydim}Skip.${nocolor}\n"
 fi
 
-update_sshd_config "$ARG_KEY" "$ARG_VALUE"
+update_sshd_config "$ARG_KEY" "$ARG_VALUE" "$ARG_FILE"

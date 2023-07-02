@@ -28,12 +28,12 @@ Parameters :
 
     -h  --help         : show this message
 ```
-## update-ssh-config
-Made for updating SSH configuration.
+## update-config
+Made for updating configuration in desire file.
 
-Enter parameter name with `-k` and his value with `-v`
+Enter parameter name with `-k` and his value with `-v`, then file to edit with `-f`
 ```sh
-update-ssh-config -k <key> -v <value> --verbose
+update-config -k <key> -v <value> -f "/path/to/file" --verbose
 ```
 
 ## init-iptables
