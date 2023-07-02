@@ -13,7 +13,7 @@
   - [install-proxmox](scripts/install-proxmox)
   - [init-users](scripts/init-users)
   - [secure-ssh](scripts/secure-ssh)
-  - [update-ssh-config](scripts/update-ssh-config)
+  - [update-config](scripts/update-config)
   - [iptables-proxmox](scripts/iptables-proxmox)
   - [iptables-vm](scripts/iptables-vm)
 

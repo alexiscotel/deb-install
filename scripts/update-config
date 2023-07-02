@@ -24,9 +24,12 @@ c__fctName='\033[0;38;5;45m'
 c__fctAction=$graydim
 c__fct2=$gray
 c__msgVar=$graybold
-c__value=$green
-c__error=$red
+c__value=$blue
+c__value2=$purple
 c__success=$green
+c__notice=$yellow
+c__warning=$orange
+c__error=$red
 
 ################
 ## PARAMETERS ##
@@ -132,7 +135,7 @@ validate_key_syntax() {
 			return 1
 		fi
 	else
-		printf "${orange}Cannot validate syntax. ${sshd_path} not found.${nocolor}\n"
+		# printf "${orange}Cannot validate syntax. ${sshd_path} not found.${nocolor}\n"
 		syntaxStatus='unknown'
 		return 2
 	fi
@@ -147,48 +150,78 @@ update_sshd_config() {
 	# # transform the comma in value by a space
 	value=${value//,/ }
 
-	# check is need to append or replace
-	if [[ "$ARG_REPLACE" == false ]]; then
-		local currentval=$(grep -E "^${key}" "$file")
-		currentval=${currentval//$key/}
-		# # Supprimer les espaces de début de chaîne
-		currentval=${currentval#"${currentval%%[![:space:]]*}"}
-		currentval=${currentval%%[[:space:]]*}
+	local currentval=$(grep -E "^${key}" "$file")
+	currentval=${currentval//$key /}
+	
+	
+	if [ -n "$currentval" ]; then # if current value is not empty
+		printf "${c__fctAction}current value of ${c__fct2}${key}${nocolor}: ${c__value}${currentval}${nocolor}\n"
 
-		echo "|$currentval|"
-		if [ -n "$currentval" ]; then
-			value=$(echo "${value} ${currentval}" | tr ' ' '\n' | sort -u | tr '\n' ' ')
-		fi	
-	fi
+		local isValueAlreadyIn=false
+		# check if value already in the current value
+		for val in $currentval; do
+			if [[ "$val" == "$value" ]]; then
+				isValueAlreadyIn=true
+			fi
+		done
 
-	# Use sed to find and replace the configuration line, even if it's commented out
-	sed -i "s/^#\?\s*${key}\s*.*/${key} ${value}/" "$ARG_FILE"
-	sedResult=$?
+		# if the value is not already in the current value
+		if [[ "$isValueAlreadyIn" == false ]]; then
+			# append the value
+			if [[ "$ARG_REPLACE" == false ]]; then
+				value="$currentval $value"
+			fi
 
-	# Check if the sed command was successful
-	if [ $sedResult -eq 0 ]; then
+			# remove duplicate values
+			value=$(echo $value | tr ' ' '\n' | sort -u | tr '\n' ' ')
 
-		# Check if the sed command added a new line
-		if ! grep -q "${key} ${value}" "$file"; then
-			printf "${gray}Key not found${graydim} ${file}${nocolor}\n"
+			# Use sed to find and replace the configuration line, even if it's commented out
+			sed -i "s/^#\?\s*${key}\s*.*/${key} ${value}/" "$ARG_FILE"
+			sedResult=$?
+			if [ $sedResult -eq 0 ]; then
+				local newval=$(grep -E "^${key}" "$file")
+				if [ -n "$newval" ]; then
+					printf "${c__notice}Updated${nocolor} : ${c__fct2}${newval}${nocolor} ${c__fctAction}${file}${nocolor}\n"
+				else
+					printf "${c__warning}no values found for ${c__msgVar}${key}${nocolor}\n"
+				fi
+			else
+				printf "${c__error}sed command failed. ${c__fct2}Aborting${nocolor}\n"
+				exit 1
+			fi
+		else
+			printf "${c__notice}value ${c__value}${value}${c__notice} already exists. ${c__fctAction}Skip\n"
+		fi
+	else
+		printf "${c__fctAction}no values found for ${c__msgVar}${key}${nocolor}\n"
 
+		# if [ $syntaxStatus = 'unknown' ]; then
+		# 	printf "\n# TO VALIDATE\n${key} ${value}\n" >> "$file"
+		# elif [ $syntaxStatus = 'valid' ]; then
+		# 	printf "\n${key} ${value}\n" >> "$file"
+		# else
+		# 	printf "${red}synthax invalid${nocolor}\n"
+		# 	exit 1
+		# fi
+
+		if [ $syntaxStatus != 'unknown' ] && [ $syntaxStatus != 'valid' ]; then
+			printf "${red}synthax invalid${nocolor}\n"
+			exit 1
+		else
 			if [ $syntaxStatus = 'unknown' ]; then
 				printf "\n# TO VALIDATE\n${key} ${value}\n" >> "$file"
 			elif [ $syntaxStatus = 'valid' ]; then
 				printf "\n${key} ${value}\n" >> "$file"
-			else
-				printf "${red}synthax invalid${nocolor}\n"
-				exit 1
 			fi
-
-			printf "${green}Add${gray} - Set ${blue}${key} ${purple}${value}${nocolor}\n"
-		else 
-			printf "${yellow}Update${gray} - Set ${blue}${key} ${purple}${value}${gray} ${graydim}${file}${nocolor}\n"
+			
+			local newval=$(grep -E "^${key}" "$file")
+			if [ -n "$newval" ]; then
+				printf "${c__success}Added${nocolor} : ${c__fct2}${newval}${nocolor} ${c__fctAction}${file}${nocolor}\n"
+			else
+				printf "${c__warning}no values found for ${c__msgVar}${key}${nocolor}\n"
+			fi
 		fi
 
-	else
-		printf "${red}Failed to update ${key}${nocolor}\n"
-		exit 1
 	fi
 }
 
@@ -197,12 +230,21 @@ update_sshd_config() {
 #############
 
 StartText () {
-    printf "${blue}$commandName script${nocolor}
-${whiitebold}This script is made for updating SSH configuration${nocolor}\n"
+    printf "${blue}$commandName script${nocolor}\n"
+	printf "${whiitebold}This script is made for updating SSH configuration${nocolor}\n"
 }
 HowToUse () {
-printf "\n❓ ${blue}How to use${gray}
-${white}${commandName} -k <key> -v <value> --replace --verbose --silent${nocolor}\n"
+	printf "\n❓ ${blue}How to use${gray}
+	${white}${commandName} -k <key> -v <value> --replace --verbose --silent${nocolor}\n"
+	printf "\n"
+	printf "${whiitebold}Parameters :${gray}\n"
+	printf "  -k --key   : parameter key\n"
+	printf "  -v --value : parameter value\n"
+	printf "  -f --file  : file to update\n"
+	printf "  --verbose  : show more logs\n"
+	printf "  --silent   : hide logs\n"
+	printf "\n"
+	printf "  -h  --help   : show this message\n"
 }
 
 #####
@@ -210,12 +252,12 @@ ${white}${commandName} -k <key> -v <value> --replace --verbose --silent${nocolor
 #####
 
 # Check if the script is being run with root privileges
-if [ "$EUID" -ne 0 ]; then
-    printf "${red}Please run ${c__fct2}$commandName${red} as root.${nocolor}\n"
-    exit 1
-else
-   runningAsRoot=true
-fi
+# if [ "$EUID" -ne 0 ]; then
+#     printf "${red}Please run ${c__fct2}$commandName${red} as root.${nocolor}\n"
+#     exit 1
+# else
+#    runningAsRoot=true
+# fi
 
 # Check if sshd exists
 test=""

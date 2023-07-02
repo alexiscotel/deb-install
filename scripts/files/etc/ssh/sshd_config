@@ -118,10 +118,6 @@ Subsystem       sftp    /usr/lib/openssh/sftp-server
 #       PermitTTY no
 #       ForceCommand cvs serverPorto 35574
 
-
-# TO VALIDATE
-AllowUsers alexis leo
-
 # TO VALIDATE
 AllowGroups sshers
 
@@ -130,3 +126,6 @@ DenyUsers toto titi
 
 # TO VALIDATE
 Port 444
+
+# TO VALIDATE
+AllowUsers user3
