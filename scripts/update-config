@@ -181,7 +181,7 @@ update_sshd_config() {
 			if [ $sedResult -eq 0 ]; then
 				local newval=$(grep -E "^${key}" "$file")
 				if [ -n "$newval" ]; then
-					printf "${c__notice}Updated${nocolor} : ${c__fct2}${newval}${nocolor} ${c__fctAction}${file}${nocolor}\n"
+					printf "${c__notice}Updated${nocolor} ${c__fct2}${key}${nocolor} : ${c__value2}${value} ${c__fctAction}${file}${nocolor}\n"
 				else
 					printf "${c__warning}no values found for ${c__msgVar}${key}${nocolor}\n"
 				fi
