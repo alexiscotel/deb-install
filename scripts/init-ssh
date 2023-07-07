@@ -1,11 +1,5 @@
 #!/bin/bash
 
-# if [ "$EUID" -ne 0 ]; then
-# 	printf "${red}Please run this script as root.${nocolor}\n"
-# 	g_errors+=("Run this script as root")
-# 	exit 1
-# fi
-
 ############
 ## COLORS ##
 ############
@@ -69,7 +63,7 @@ existing_denied_groups=()
 sshd_config="/etc/ssh/sshd_config"
 hosts_allow="/etc/hosts.allow"
 
-PWD=$(pwd)
+# PWD=$(pwd)
 g_errors=()
 pwd=$(pwd)
 actualpwd=$(pwd)
@@ -77,6 +71,17 @@ gentenvInvalid=false
 
 verbose=false
 silent=false
+
+isScriptInError=false
+
+###############
+## CHECK ROOT
+###############
+if [ "$EUID" -ne 0 ]; then
+	printf "${c__error}Please run this script as root.${nocolor}\n"
+	exit 1
+fi
+
 
 ##########################################
 ## FUNCTIONS
@@ -169,8 +174,12 @@ CheckIfItemExists() {
 
 	# TODO: check if string is a user or a group
 
+	if [ $verbose == true ]; then
+		printf "${c__fctAction}Checking if ${c__value}$item${c__fctAction} is a valid Linux ${c__fctName}${type} ...${nocolor}\n"
+	fi
+
 	if [ "$type" == 'user' ]; then
-		printf "${c__fctAction}Checking if ${c__value}$item${c__fctAction} is a valid Linux user ...${nocolor}\n"
+
 		if id -u "$item" >/dev/null 2>&1; then
 			printf "${c__value}$item${c__fctAction} is a valid Linux user.${nocolor}\n"
 			return 0
@@ -179,7 +188,7 @@ CheckIfItemExists() {
 			return 1
 		fi
 	elif [ "$type" == 'group' ]; then
-		printf "${c__fctAction}Checking if ${c__value}$item${c__fctAction} is a valid Linux group ...${nocolor}\n"
+
 		if ! command -v getent > /dev/null; then
 			gentenvInvalid=true
 			if [ $verbose == true ]; then
@@ -203,7 +212,7 @@ CheckIfItemExists() {
 		fi
 	else
 		printf "${c__error}parameter ${c__msgVar}type${c__error} is mandatory.${nocolor}\n"
-		g_errors+=("type is mandatory")
+		g_errors+=("${c__error}type is mandatory${nocolor}")
 		return 1
 	fi
 }
@@ -216,17 +225,19 @@ CheckAllowUsers() {
 			local test=$?
 			if [ $test -eq 0 ]; then
 				existing_allowed_users+=("$usr")
+			elif [ $test -eq 1 ]; then
+				g_errors+=("${c__error}allowed user ${c__fct2}\"${usr}\"${c__error} is not a valid user${nocolor}")
 			elif [ $test -eq 2 ]; then
 				if [ $silent == false ]; then
-					printf "${c__error}check for \"${usr}\" fail${nocolor}\n"
+					printf "${c__error}check for ${c__fct2}\"${usr}\"${c__error} fail${nocolor}\n"
 				fi
-				g_errors+=("${c__error}check for allowed user \"${usr}\" fail${nocolor}")
+				g_errors+=("${c__error}check for allowed user ${c__fct2}\"${usr}\"${c__error} fail${nocolor}")
 			fi
 		else
 			if [ $silent == false ]; then
 				printf "${c__notice}check skip for ${whiitebold}\"${usr}\"${nocolor}\n"
 			fi
-			g_errors+=("${c__notice}check skip for allowed user ${whiitebold}\"${usr}\"${nocolor}")
+			g_errors+=("${c__notice}check skip for allowed user ${c__fct2}\"${usr}\"${nocolor}")
 		fi
 	done
 }
@@ -258,17 +269,19 @@ CheckAllowGroups() {
 			local test=$?
 			if [ $test -eq 0 ]; then
 				existing_allowed_groups+=("$grp")
+			elif [ $test -eq 1 ]; then
+				g_errors+=("${c__error}allowed group ${c__fct2}\"${grp}\"${c__error} is not a valid group${nocolor}")
 			elif [ $test -eq 2 ]; then
 				if [ $silent == false ]; then
-					printf "${c__error}check for \"${grp}\" fail${nocolor}\n"
+					printf "${c__error}check for ${c__fct2}\"${grp}\"${c__error} fail${nocolor}\n"
 				fi
-				g_errors+=("${c__error}check for allowed group \"${grp}\" fail${nocolor}")
+				g_errors+=("${c__error}check for allowed group ${c__fct2}\"${grp}\"${c__error} fail${nocolor}")
 			fi
 		else
 			if [ $silent == false ]; then
-				printf "${c__notice}check skip for ${whiitebold}\"${grp}\"${nocolor}\n"
+				printf "${c__notice}check skip for ${c__fct2}\"${grp}\"${nocolor}\n"
 			fi
-			g_errors+=("${c__notice}check skip for allowed group ${whiitebold}\"${grp}\"${nocolor}")
+			g_errors+=("${c__notice}check skip for allowed group ${c__fct2}\"${grp}\"${nocolor}")
 		fi
 	done
 }
@@ -300,17 +313,19 @@ CheckDeniedUsers() {
 			local test=$?
 			if [ $test -eq 0 ]; then
 				existing_denied_users+=("$usr")
+			elif [ $test -eq 1 ]; then
+				g_errors+=("${c__error}denied user ${c__fct2}\"${usr}\"${c__error} is not a valid user${nocolor}")
 			elif [ $test -eq 2 ]; then
 				if [ $silent == false ]; then
-					printf "${c__error}check for \"${usr}\" fail${nocolor}\n"
+					printf "${c__error}check for ${c__fct2}\"${usr}\"${c__error} fail${nocolor}\n"
 				fi
-				g_errors+=("${c__error}check for denied user \"${usr}\" fail${nocolor}")
+				g_errors+=("${c__error}check for denied user ${c__fct2}\"${usr}\"${c__error} fail${nocolor}")
 			fi
 		else
 			if [ $silent == false ]; then
-				printf "${c__notice}check skip for ${whiitebold}\"${usr}\"${nocolor}\n"
+				printf "${c__notice}check skip for ${c__fct2}\"${usr}\"${nocolor}\n"
 			fi
-			g_errors+=("${c__notice}check skip for denied user ${whiitebold}\"${usr}\"${nocolor}")
+			g_errors+=("${c__notice}check skip for denied user ${c__fct2}\"${usr}\"${nocolor}")
 		fi
 	done
 }
@@ -342,17 +357,19 @@ CheckDeniedGroups() {
 			local test=$?
 			if [ $test -eq 0 ]; then
 				existing_denied_groups+=("$grp")
+			elif [ $test -eq 1 ]; then
+				g_errors+=("${c__error}denied group ${c__fct2}\"${grp}\"${c__error} is not a valid group${nocolor}")
 			elif [ $test -eq 2 ]; then
 				if [ $silent == false ]; then
-					printf "${c__error}check for \"${grp}\" fail${nocolor}\n"
+					printf "${c__error}check for ${c__fct2}\"${grp}\"${c__error} fail${nocolor}\n"
 				fi
-				g_errors+=("${c__error}check for denied group \"${grp}\" fail${nocolor}")
+				g_errors+=("${c__error}check for denied group ${c__fct2}\"${grp}\"${c__error} fail${nocolor}")
 			fi
 		else
 			if [ $silent == false ]; then
-				printf "${c__notice}check skip for ${whiitebold}\"${grp}\"${nocolor}\n"
+				printf "${c__notice}check skip for ${c__fct2}\"${grp}\"${nocolor}\n"
 			fi
-			g_errors+=("${c__notice}check skip for denied group ${whiitebold}\"${grp}\"${nocolor}")
+			g_errors+=("${c__notice}check skip for denied group ${c__fct2}\"${grp}\"${nocolor}")
 		fi
 	done
 }
@@ -392,12 +409,27 @@ ManageSSH() {
 	# if [ $silent == true ] && [ $verbose == true ]; then
 	# 	bash ./update-config -k Port -v $ssh_port --verbose --silent
 	# elif [ $silent == true ]; then
+	local result=
 	if [ $silent == true ]; then
-		bash ./update-config -k Port -v $ssh_port -f "$sshd_config" --silent
+		bash ./update-config -k Port -v $ssh_port -f "$sshd_config" --replace --silent
+		result=$?
 	elif [ $verbose == true ]; then
-		bash ./update-config -k Port -v $ssh_port -f "$sshd_config" --verbose
+		bash ./update-config -k Port -v $ssh_port -f "$sshd_config" --replace --verbose
+		result=$?
 	else
-		bash ./update-config -k Port -v $ssh_port -f "$sshd_config"
+		bash ./update-config -k Port -v $ssh_port -f "$sshd_config" --replace
+		result=$?
+	fi
+
+	if [ $result -eq 0 ]; then
+		if [ $verbose == true ]; then
+			printf "${c__fctAction}ssh port updated to ${c__value}${ssh_port}${nocolor}\n"
+		fi
+	else
+		if [ $verbose == true ]; then
+			printf "${c__error}ssh port update fail${nocolor}\n"
+		fi
+		g_errors+=("${c__error}ssh port update fail${nocolor}")
 	fi
 }
 
@@ -429,9 +461,9 @@ ManageNetwork() {
 		fi
 	else
 		if [ $silent == false ]; then
-			printf "${c__error}file \"$hosts_allow\" does not exists. ${graydim}Skip${nocolor}\n"
+			printf "${c__error}file ${c__fct2}\"$hosts_allow\"${nocolor} does not exists. ${graydim}Skip${nocolor}\n"
 		fi
-		g_errors+=("${c__error}file \"$hosts_allow\" does not exists.${nocolor}")
+		g_errors+=("${c__error}file ${c__fct2}\"${hosts_allow}\"${c__error} does not exists.${nocolor}")
 	fi
 }
 
@@ -489,20 +521,24 @@ HowToUse() {
 }
 
 EndOfScript() {
-	printf "\n"
+	printf "${c__fctName}${commandName}${nocolor} - ${c__fct2}Resume${nocolor}\n"
 
 	# show error messages if there are
 	if [[ ${#g_errors[@]} -gt 0 ]]; then
-		printf "${red}❌ ${#g_errors[@]} error(s)${nocolor}\n"
+		printf "${c__error}❌ ${#g_errors[@]} error(s)${nocolor}\n"
 		for err in "${g_errors[@]}"; do
-			printf "  ${red}- ${err}${nocolor}\n"
+			printf "  ${c__error}- ${err}${nocolor}\n"
 		done
+		isScriptInError=true
 	else
-		printf "${green}✅ No error${nocolor}\n"
+		# if [[ $silent == false ]]; then
+			printf "${green}✅ No error${nocolor}\n"
+		# fi
 	fi
 
-	printf "👋 ${blue}Bye bye${nocolor} 👋\n"
-	printf "\n"
+	if [[ $silent == false ]]; then
+		printf "👋 ${blue}Bye bye${nocolor} 👋\n"
+	fi
 }
 
 
@@ -616,5 +652,10 @@ if [[ "${#denied_groups[@]}" -gt 0 ]]; then
 fi
 
 
-# EndOfScript
-exit 0
+EndOfScript
+
+if [[ "$isScriptInError" = true ]]; then
+	exit 1
+else
+	exit 0
+fi

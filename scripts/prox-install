@@ -1,11 +1,5 @@
 #!/bin/bash
 
-if [ "$EUID" -ne 0 ]; then
-	printf "${red}Please run this script as root.${nocolor}\n"
-	errors+=("Run this script as root")
-	exit 1
-fi
-
 ############
 ## COLORS ##
 ############
@@ -32,27 +26,40 @@ c__fctAction=$graydim
 c__fct2=$gray
 c__msgVar=$graybold
 c__value=$blue
+c__value2=$purple
 c__error=$red
 c__warning=$orange
-c__cancel=$yellow
+c__notice=$yellow
 c__success=$green
 
 
-## VARIABLES - TO BE CONFIGURED
+###################
+## FILE VARIABLES
+###################
+# confFile="prox.conf"
+confFile=""
+# [GLOBAL]
 proxmox=false
 init_users=false
+init_ssh=false
 init_iptables=false
 init_iptables_vm=false
-init_ssh=false
+# [USERS]
+users=""
+groups=""
+users_in_groups=""
+# [SSH]
+ssh_config_file=""
 ssh_port=""
-network_host=""
-bastion_ip=""
-groups_str=""
 ssh_allowed_users=""
 ssh_allowed_groups=""
 ssh_denied_users=""
 ssh_denied_groups=""
-. ./prox.conf
+# [NETWORK]
+network_host=""
+bastion_ip=""
+
+# . "$confFile"
 ## - VARIABLES
 
 ## PARAMETERS
@@ -60,14 +67,42 @@ commandPath=$0
 commandName=`basename "$commandPath"`
 pwd=$(pwd)
 actualpwd=$(pwd)
+declare -a g_errors=()
 ## - PARAMETERS
+
+
+###############
+## CHECK ROOT
+###############
+if [ "$EUID" -ne 0 ]; then
+	printf "${c__error}Please run this script as root.${nocolor}\n"
+	exit 1
+fi
+
+
+CheckIfConfFileExists() {
+	# check if confFile is not empty
+	if [ -z "$confFile" ]; then
+		# printf "${c__error}Configuration file not set.${nocolor}Use ${whiitebold}-f | --file${nocolor}\n"
+		printf "${c__error}parameter ${c__msgVar}-f | --file${c__error} is mandatory.${nocolor}\n"
+		exit 1
+	fi
+
+	# check if confFile exist
+	if [ ! -f "$confFile" ]; then
+		printf "${c__error}Configuration file ${c__msgVar}$confFile${c__error} not found.${nocolor}\n"
+		exit 1
+	fi
+}
 
 LoadConfig(){
 	local display=$1
-	. ./prox.conf
+	# . ./prox.conf
+	# . "$confFile"
+	source "$confFile"
 
-	if [ $proxmox == false ] && [ $init_iptables == false ] && [ $init_users == false ] && [ $init_ssh == false ]; then
-		printf "${orange}No action parameter active. In ${whiitebold}prox.conf${orange}, enable at least one ${whiitebold}init_*${orange} parameter${nocolor}\n"
+	if [ $proxmox == false ] && [ $init_users == false ] && [ $init_ssh == false ] && [ $init_iptables == false ] && [ $init_iptables_vm == false ] && [ -z "$network_host" ] && [ -z "$bastion_ip" ]; then
+		printf "${orange}No action parameter active. In ${whiitebold}${confFile}${orange}, enable at least one ${whiitebold}init_*${orange} parameter${nocolor}\n"
 		exit 1
 	else
 		printf "${c__success}Configuration loaded${nocolor}\n"
@@ -78,62 +113,148 @@ LoadConfig(){
 	printf "\n"
 }
 DisplayConfig() {
-	printf "${c__fctName}GLOBAL${nocolor}\n"
-	printf "${c__fctAction}proxmox${nocolor}: ${c__value}$proxmox${nocolor}\n"
+	printf "${c__fctName}Initialisation required for :${nocolor}\n"
+	printf " - ${c__fct2}network${nocolor}\n"
 
-	printf "${c__fctAction}init iptables${nocolor}: ${c__value}$init_iptables${nocolor}\n"
-	printf "${c__fctAction}init ssh${nocolor}: ${c__value}$init_ssh${nocolor}\n"
+	if [ "$proxmox" = true ]; then
+		printf " - ${c__fct2}proxmox${nocolor}\n"
+	fi
+	if [ "$init_users" = true ]; then
+		printf " - ${c__fct2}users${nocolor}\n"
+	fi
+	if [ "$init_ssh" = true ]; then
+		printf " - ${c__fct2}SSH${nocolor}\n"
+	fi
+	if [ "$init_iptables" = true ]; then
+		printf " - ${c__fct2}global iptables${nocolor}\n"
+	fi
+	if [ "$init_iptables_vm" = true ]; then
+		printf " - ${c__fct2}VMs iptables${nocolor}\n"
+	fi
+	printf "\n"
 
-	printf "${c__fctName}USERS${nocolor}\n"
-	printf "${c__fctAction}init users${nocolor}: ${c__value}$init_users${nocolor}\n"
-	printf "${c__fctAction}groups string${nocolor}: ${c__value}$groups_str${nocolor}\n"
-
-	printf "${c__fctName}NETWORK${nocolor}\n"
-	printf "${c__fctAction}init iptables${nocolor}: ${c__value}$init_iptables${nocolor}\n"
+	printf "${c__fct2}[NETWORK]${nocolor}\n"
 	printf "${c__fctAction}Network host${nocolor}: ${c__value}$network_host${nocolor}\n"
 	printf "${c__fctAction}Bastion IP${nocolor}: ${c__value}$bastion_ip${nocolor}\n"
+	printf "\n"
 
-	printf "${c__fctName}SSH${nocolor}\n"
-	printf "${c__fctAction}init SSH${nocolor}: ${c__value}$init_ssh${nocolor}\n"
-	printf "${c__fctAction}SSH Port${nocolor}: ${c__value}$ssh_port${nocolor}\n"
-	printf "${c__fctAction}Allow users${nocolor}: ${c__value}$ssh_allowed_users${nocolor}\n"
-	printf "${c__fctAction}Allow groups${nocolor}: ${c__value}$ssh_allowed_groups${nocolor}\n"
-	printf "${c__fctAction}Denied users${nocolor}: ${c__value}$ssh_denied_users${nocolor}\n"
-	printf "${c__fctAction}Denied groups${nocolor}: ${c__value}$ssh_denied_groups${nocolor}\n"
+	printf "${c__fct2}[USERS]${nocolor}"
+	if [ "$init_users" = true ]; then
+		printf " ${c__success}active${nocolor}\n"
+
+		printf "${c__fctAction}users string${nocolor}: ${c__value}$users${nocolor}\n"
+		printf "${c__fctAction}groups string${nocolor}: ${c__value}$groups${nocolor}\n"
+		printf "${c__fctAction}users_in_groups string${nocolor}: ${c__value}$users_in_groups${nocolor}\n"
+	else
+		printf " ${c__notice}inactive${nocolor}\n"
+	fi
+	printf "\n"	
+
+	printf "${c__fct2}[SSH]${nocolor}"
+	if [ "$init_ssh" = true ]; then
+		printf " ${c__success}active${nocolor}\n"
+
+		printf "${c__fctAction}SSH Port${nocolor}: ${c__value}$ssh_port${nocolor}\n"
+		printf "${c__fctAction}Allow users${nocolor}: ${c__value}$ssh_allowed_users${nocolor}\n"
+		printf "${c__fctAction}Allow groups${nocolor}: ${c__value}$ssh_allowed_groups${nocolor}\n"
+		printf "${c__fctAction}Denied users${nocolor}: ${c__value}$ssh_denied_users${nocolor}\n"
+		printf "${c__fctAction}Denied groups${nocolor}: ${c__value}$ssh_denied_groups${nocolor}\n"
+	else
+		printf " ${c__notice}inactive${nocolor}\n"
+	fi
+	printf "\n"
+
+	printf "${c__fct2}[IP-TABLES]${nocolor}"
+	if [ "$init_iptables" = true ]; then
+		printf " ${c__success}active${nocolor}\n"
+	else
+		printf " ${c__notice}inactive${nocolor}\n"
+	fi
+	printf "\n"
+
+	printf "${c__fct2}[IP-TABLES-VM]${nocolor}"
+	if [ "$init_iptables_vm" = true ]; then
+		printf " ${c__success}active${nocolor}\n"
+	else
+		printf " ${c__notice}inactive${nocolor}\n"
+	fi
+	printf "\n"
+	
 }
 
 PVEentreprise() {
+	local isError=false
 	printf "${c__fctName}Deactivating enterprise messages ...${nocolor}\n"
 
-	mv /etc/apt/sources.list.d/pve-enterprise.list /etc/apt/sources.list.d/pve-enterprise.list.disabled &&
-	mv /etc/apt/sources.list.d/ceph.list /etc/apt/sources.list.d/ceph.list.disabled
+	# check /etc/apt/sources.list.d/pve-enterprise.list file exists
+	if [ ! -f /etc/apt/sources.list.d/pve-enterprise.list ]; then
+		pve_errors+=("${c__error}File ${c__fct2}/etc/apt/sources.list.d/pve-enterprise.list${c__error} not found${nocolor}")
+		isError=true
+	else
+		mv /etc/apt/sources.list.d/pve-enterprise.list /etc/apt/sources.list.d/pve-enterprise.list.disabled	
+	fi
 
-	echo '# Proxmox community package repository' >> /etc/apt/sources.list
-	echo 'deb http://download.proxmox.com/debian/pve bullseye pve-no-subscription' >> /etc/apt/sources.list
+	# check if /etc/apt/sources.list.d/ceph.list file exists
+	if [ ! -f /etc/apt/sources.list.d/ceph.list ]; then
+		pve_errors+=("${c__error}File ${c__fct2}/etc/apt/sources.list.d/ceph.list${c__error} not found${nocolor}")
+		isError=true
+	else
+		mv /etc/apt/sources.list.d/ceph.list /etc/apt/sources.list.d/ceph.list.disabled
+	fi
 
-	printf "${c__success}Enterprise messages deactivated${nocolor}\n"
+	# check if /etc/apt/ dir exists
+	if [ ! -d "/etc/apt/" ]; then
+		pve_errors+=("${c__error}Directory ${c__fct2}/etc/apt/${c__error} not found${nocolor}")
+		isError=true
+	else
+		echo '# Proxmox community package repository' >> /etc/apt/sources.list
+		echo 'deb http://download.proxmox.com/debian/pve bullseye pve-no-subscription' >> /etc/apt/sources.list
+	fi
+
+	if [ "$isError" == true ]; then
+		g_errors+=("${c__error}[PVE Enterprise] file errors${nocolor}")
+
+		# show error messages if there are
+		if [[ ${#pve_errors[@]} -gt 0 ]]; then
+			printf "${c__error}❌ ${#pve_errors[@]} error(s)${nocolor}\n"
+			for err in "${pve_errors[@]}"; do
+				printf "  ${c__error}- ${err}${nocolor}\n"
+			done
+		else
+			printf "${green}✅ No error${nocolor}\n"
+		fi
+
+	else
+		printf "${c__success}Enterprise messages deactivated${nocolor}\n"
+	fi
+
 }
 
 UpdateSystem() {
+	printf "${c__fctName}System initialization${nocolor}\n"
 	apt update
 	apt upgrade
 	apt dist-upgrade
 
 	apt install htop gzip
+
+	printf "\n${c__success}System initialization end.${nocolor}\n"
 }
 
 InitUsers() {
 	printf "${c__fctName}Users initialization${nocolor}"
 	if [ $init_users == true ]; then
 		printf "\n"
-		bash init-users --groups $groups_str
-		if [ $? -eq 1 ]; then
-			printf "${c__error}user ${whiitebold}$user${c__error} not exist${nocolor}\n"
+
+		bash init-users -u "$users" -g "$groups" --add "$users_in_groups" --silent
+		if [ $? -eq 0 ]; then
+			return 0
+		else
+			g_errors+=("${c__error}Users initialization failed.${nocolor}")
 			return 1
 		fi
-		return 0
 	else
-		printf " ${c__cancel}pass${nocolor}\n"
+		printf " ${c__cancel}skip${nocolor}\n"
 		return 0
 	fi
 }
@@ -142,23 +263,22 @@ InitSSH() {
 	printf "${c__fctName}SSH initialization${nocolor}"
 	if [ $init_ssh == true ]; then
 		printf "\n"
-		bash init-ssh -p $ssh_port -n $network_host -u $ssh_allowed_users -g $ssh_allowed_groups -U $ssh_denied_users -G $ssh_denied_groups --silent
-		if [ $? -eq 0 ]; then
+
+		bash init-ssh -p "$ssh_port" -n "$network_host" -u "$ssh_allowed_users" -g "$ssh_allowed_groups" -U "$ssh_denied_users" -G "$ssh_denied_groups" -f "$ssh_config_file" --silent
+		local test=$?
+		if [ $test -eq 0 ]; then
 			systemctl restart ssh
-			if [ $? -eq 0 ]; then
-				printf "${c__success}SSH initialization end.${nocolor}\n"
-			else
-				printf "${c__warning}SSH restart failed${nocolor}\n"
+			local test=$?
+			if [ $test -ne 0 ]; then
+				g_errors+=("${c__warning}SSH restart failed${nocolor}")
 			fi
 			return 0
 		else
-			printf "${c__error}user ${whiitebold}$user${c__error} not exist${nocolor}\n"
+			g_errors+=("${c__error}[SSH]${nocolor}")
 			return 1
 		fi
-		printf "\n"
 	else
-		printf " ${c__cancel}pass${nocolor}\n"
-		printf "\n"
+		printf " ${c__cancel}skip${nocolor}\n"
 		return 0
 	fi
 }
@@ -195,12 +315,67 @@ InitIptables() {
 }
 
 
+StartText () {
+	clear
+	printf "${blue}$commandName script ${nocolor}\n"
+	printf "\n"
+	printf "${whiitebold}This script is made to configure a fresh Proxmox server installation\n"
+	printf "Create users and groups, protect with SSH and IPTABLES\n"
+	printf "Follow the next steps to configure it !${nocolor}\n"
+	printf "${yellow}TODO: implements fail2ban security${nocolor}\n"
+	printf "\n"
+}
+HowToUse() {
+	printf "❓ ${blue}How to use${gray}\n"
+	printf "\n"
+	printf "${commandName} --ssh-port 2222 --network-host 192.168.0.1/24 --bastion 192.168.0.1 --users-groups group1:username1,username2/group2:username3,username4,username5 --ssh-allow-users username1,sshuser@ip:port --ssh-allow-groups group1,group2 --ssh-deny-users username3,sshuser@ip:port --ssh-deny-groups group4${nocolor}\n"
+	printf "\n"
+	printf "${whiitebold}Parameters :${gray}\n"
+	printf "\n"
+	# printf "    --use-proxmox        : Use flag to deactivate enterprise messages\n"
+	# printf "    --use-vm             : Use flag to active iptables config for VMs\n"
+	# printf "\n"
+	# printf "    --ssh-port           : SSH port\n"
+	# printf "    --network-host       : Network host\n"
+	# printf "    --bastion            : Bastion IP\n"
+	# printf "\n"
+	# printf "    --users-groups       : Groups string for creating users and groups\n"
+	# printf "\n"
+	# printf "    --ssh-allow-users  : Allowed users to connect through SSH\n"
+	# printf "    --ssh-allow-groups : Allowed groups to connect through SSH\n"
+	# printf "    --ssh-deny-users   : Denied users to connect through SSH\n"
+	# printf "    --ssh-deny-groups  : Denied groups to connect through SSH\n"
+	printf "    -f | --file  : configuration file\n"
+	printf "\n"
+	printf "    -h  --help   : show this message\n"
+	printf "${nocolor}\n"
+}
+
+EndOfScript() {
+	printf "\n"
+	printf "${c__fctName}${commandName}${nocolor} - ${c__fct2}Resume${nocolor}\n"
+	# show error messages if there are
+	if [[ ${#g_errors[@]} -gt 0 ]]; then
+		printf "${c__error}❌ ${#g_errors[@]} error(s)${nocolor}\n"
+		for err in "${g_errors[@]}"; do
+			printf "  - ${err}${nocolor}\n"
+		done
+	else
+		printf "${green}✅ No error${nocolor}\n"
+	fi
+
+	printf "👋 ${blue}Bye bye${nocolor} 👋\n"
+	printf "\n"
+}
+
+
 Main(){
 	## > DISABLE ENTERPRISE MESSAGES
 	if [[ $proxmox == true ]]; then
 		PVEentreprise
-	fi
-	printf "\n"
+
+		printf "\n"
+	fi	
 	## < DISABLE ENTERPRISE MESSAGES
 
 	## > UPDATE SYSTEM
@@ -208,21 +383,20 @@ Main(){
 	## < UDPATE SYSTEM
 
 	## > USERS INITIALIZATION
-	InitUsers
-	if [ $? -eq 1 ]; then
-		printf "${c__error}Users initialization failed${nocolor}\n"
-		return 1
-	fi
-	printf "\n"
-	## < USERS INITIALIZATION
-
-	# ## > SSH CONFIG
-	# InitSSH
+	# InitUsers
 	# if [ $? -eq 1 ]; then
-	# 	printf "${c__error}SSH initialization failed${nocolor}\n"
+	# 	# printf "${c__error}Users initialization failed${nocolor}\n"
 	# 	return 1
 	# fi
-	# ## < SSH CONFIG
+	## < USERS INITIALIZATION
+
+	## > SSH CONFIG
+	InitSSH
+	if [ $? -eq 1 ]; then
+		# printf "${c__error}SSH initialization failed${nocolor}\n"
+		return 1
+	fi
+	## < SSH CONFIG
 
 	# ## > IPTABLES CONFIG
 	# InitIptables
@@ -233,39 +407,7 @@ Main(){
 	# ## < IPTABLES CONFIG
 }
 
-StartText () {
-clear
-printf "${blue}$commandName script ${nocolor}
 
-${whiitebold}This script is made to configure a fresh Proxmox server installation
-Create users and groups, protect with SSH and IPTABLES
-Follow the next steps to configure it !${nocolor}
-${yellow}TODO: implements fail2ban security${nocolor}
-\n"
-}
-HowToUse() {
-printf "❓ ${blue}How to use${gray}
-
-${commandName} --ssh-port 2222 --network-host 192.168.0.1/24 --bastion 192.168.0.1 --users-groups group1:username1,username2/group2:username3,username4,username5 --ssh-allow-users username1,sshuser@ip:port --ssh-allow-groups group1,group2 --ssh-deny-users username3,sshuser@ip:port --ssh-deny-groups group4${nocolor}
-
-${whiitebold}Parameters :${gray}
-    --use-proxmox        : Use flag to deactivate enterprise messages
-    --use-vm             : Use flag to active iptables config for VMs
-    
-    --ssh-port           : SSH port
-    --network-host       : Network host
-    --bastion            : Bastion IP
-    
-    --users-groups       : Groups string for creating users and groups
-    
-    --ssh-allow-users  : Allowed users to connect through SSH
-    --ssh-allow-groups : Allowed groups to connect through SSH
-    --ssh-deny-users   : Denied users to connect through SSH
-    --ssh-deny-groups  : Denied groups to connect through SSH
-    
-    -h  --help           : show this message
-${nocolor}\n"
-}
 
 ## -----------------------------------------------------------------------
 # CheckIfRoot
@@ -273,64 +415,75 @@ StartText
 # Récupération des paramètres en utilisant getopts
 while [[ $# -gt 0 ]]; do
   case $1 in
-	--vm)
+	-f | --file)
 	  shift
-	  init_iptables_vm=true
+	  confFile=$1
 	  ;;
-	--proxmox)
-	  shift
-	  proxmox=true
-	  ;;
-    --ssh-port)
-      shift
-      ssh_port=$1
-      ;;
-    --network-host)
-      shift
-      network_host=$1
-      ;;
-	--bastion)
-	  shift
-	  bastion_ip=$1
-	  ;;
-    --users-groups)
-	  shift
-	  groups_str=$1
-	  ;;
-	--ssh-allow-users)
-      shift
-      ssh_allowed_users=$1
-      ;;
-    --ssh-allow-groups)
-      shift
-      ssh_allowed_groups=$1
-      ;;
-    --ssh-deny-users)
-      shift
-      ssh_denied_users=$1
-      ;;
-    --ssh-deny-groups)
-      shift
-      ssh_denied_groups=$1
-      ;;
+	# --vm)
+	#   shift
+	#   init_iptables_vm=true
+	#   ;;
+	# --proxmox)
+	#   shift
+	#   proxmox=true
+	#   ;;
+    # --ssh-port)
+    #   shift
+    #   ssh_port=$1
+    #   ;;
+    # --network-host)
+    #   shift
+    #   network_host=$1
+    #   ;;
+	# --bastion)
+	#   shift
+	#   bastion_ip=$1
+	#   ;;
+    # --users-groups)
+	#   shift
+	#   groups_str=$1
+	#   ;;
+	# --ssh-allow-users)
+    #   shift
+    #   ssh_allowed_users=$1
+    #   ;;
+    # --ssh-allow-groups)
+    #   shift
+    #   ssh_allowed_groups=$1
+    #   ;;
+    # --ssh-deny-users)
+    #   shift
+    #   ssh_denied_users=$1
+    #   ;;
+    # --ssh-deny-groups)
+    #   shift
+    #   ssh_denied_groups=$1
+    #   ;;
     -h | --help)
-	HowToUse
-	exit 0
+		HowToUse
+		exit 0
 		;;
 	*)
-      echo "Option invalide: $1"
-      exit 1
-      ;;
+      	echo "Option invalide: $1"
+      	exit 1
+      	;;
   esac
   shift
 done
 
+CheckIfConfFileExists
+if [ $? -eq 1 ]; then
+	exit 1
+fi
+
 LoadConfig true
 Main
-if [ $? -eq 1 ]; then
-	printf "${c__error}Script failed${nocolor}\n"
-	exit 1
-else
-	printf "${c__success}Script end${nocolor}\n"
-	exit 0
-fi
+# if [ $? -eq 1 ]; then
+# 	printf "${c__error}Script failed${nocolor}\n"
+# 	# exit 1
+# else
+# 	printf "${c__success}Script end${nocolor}\n"
+# 	# exit 0
+# fi
+
+EndOfScript

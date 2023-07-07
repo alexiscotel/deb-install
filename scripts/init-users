@@ -1,11 +1,5 @@
 #!/bin/bash
 
-# if [ "$EUID" -ne 0 ]; then
-# 	printf "${red}Please run this script as root.${nocolor}\n"
-# 	g_errors+=("Run this script as root")
-# 	exit 1
-# fi
-
 ############
 ## COLORS ##
 ############
@@ -63,6 +57,15 @@ groupedUsersString=""
 declare -a groupedUsers=()
 addingGroup=""
 
+
+###############
+## CHECK ROOT
+###############
+if [ "$EUID" -ne 0 ]; then
+	printf "${c__error}Please run this script as root.${nocolor}\n"
+	exit 1
+fi
+
 ##############
 ## FUNCTIONS
 ##############
@@ -86,7 +89,7 @@ CheckMandatoryParams() {
 
 	if [ ! -z "$groupedUsersString" ]; then
 		if [ -z "$usersString" ] || [ -z "$groupsString" ]; then
-			g_errors+="${c__error}In order to add users into groups, you must provide users and groups parameters.${nocolor}\n"
+			g_errors+=("${c__error}In order to add users into groups, you must provide users and groups parameters.${nocolor}")
 			return 1
 		fi
 	else
@@ -95,7 +98,9 @@ CheckMandatoryParams() {
 }
 
 ManageSkelFiles() {
-	printf "${c__fctName}Load skel files${nocolor}\n"
+	if [[ $silent == false ]]; then
+		printf "${c__fctName}Load skel files${nocolor}\n"
+	fi
 
 	find "$repSkell" -type f | while read -r file; do
 		local filename=$(basename "$file")
@@ -153,6 +158,7 @@ CheckIfItemExists() {
 			if [ $verbose == true ]; then
 				printf "   ${c__error}command getenv not found${nocolor}\n"
 			fi
+			g_errors+=("${c__error}command getenv not found${nocolor}")
 			return 2
 		else
 			if [ $verbose == true ]; then
@@ -175,7 +181,7 @@ CheckIfItemExists() {
 		fi
 	else
 		printf "${c__error}parameter ${c__msgVar}type${c__error} is mandatory.${nocolor}\n"
-		errors+=("type is mandatory")
+		g_errors+=("type is mandatory")
 		return 1
 	fi
 }
@@ -219,9 +225,9 @@ ManageGroups() {
 
 			elif [ $test -eq 2 ]; then # command getent not found
 
-				if [ $silent == false ]; then
+				# if [ $silent == false ]; then
 					printf "   ${c__error}check for \"${groupname}\" fail${nocolor}\n"
-				fi
+				# fi
 
 				continue
 			fi
@@ -233,7 +239,9 @@ ManageGroups() {
 
 	done
 
-	printf "\n"
+	if [[ $silent == false ]]; then
+		printf "\n"
+	fi
 }
 
 CreateGroup() {
@@ -318,7 +326,9 @@ ManageUsers() {
 
 	done
 
-	printf "\n"
+	if [[ $silent == false ]]; then
+		printf "\n"
+	fi
 }
 
 CheckIfUserInGroup() {
@@ -434,20 +444,27 @@ HowToUse() {
 	printf "${nocolor}\n"
 }
 EndOfScript() {
-	printf "\n"
+	# if [[ $silent == false ]]; then
+	# 	printf "\n"
+	# fi
+
+	printf "${c__fctName}${commandName}${nocolor} - ${c__fct2}Resume${nocolor}\n"
 
 	# show error messages if there are
 	if [[ ${#g_errors[@]} -gt 0 ]]; then
-		printf "${red}❌ ${#g_errors[@]} error(s)${nocolor}\n"
+		printf "${c__error}❌ ${#g_errors[@]} error(s)${nocolor}\n"
 		for err in "${g_errors[@]}"; do
-			printf "  ${red}- ${err}${nocolor}\n"
+			printf "  ${c__error}- ${err}${nocolor}\n"
 		done
 	else
-		printf "${green}✅ No error${nocolor}\n"
+		# if [[ $silent == false ]]; then
+			printf "${green}✅ No error${nocolor}\n"
+		# fi
 	fi
 
-	printf "👋 ${blue}Bye bye${nocolor} 👋\n"
-	printf "\n"
+	if [[ $silent == false ]]; then
+		printf "👋 ${blue}Bye bye${nocolor} 👋\n"
+	fi
 }
 
 
@@ -654,3 +671,8 @@ ManageUsers
 
 
 EndOfScript
+if [[ ${#g_errors[@]} -gt 0 ]]; then
+	exit 1
+else
+	exit 0
+fi
