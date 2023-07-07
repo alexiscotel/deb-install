@@ -35,41 +35,61 @@ c__value=$blue
 c__value2=$purple
 c__error=$red
 c__warning=$orange
+c__notice=$yellow
 c__success=$green
 
-
+###############
 ## VARIABLES
+###############
 repSkell="files/etc/skel"
 pwd=$(pwd)
 actualpwd=$(pwd)
 g_errors=()
+gentenvInvalid=false
+commandPath=$0
+commandName=`basename "$commandPath"`
 
 ###############
 ## PARAMETERS
 ###############
-commandPath=$0
-commandName=`basename "$commandPath"`
-create=false
-delete=false
-groupstring=""
 silent=false
 verbose=false
+usersString=""
+declare -a users=()
+groupsString=""
+declare -a groups=()
+groupedUsersString=""
+declare -a groupedUsers=()
+addingGroup=""
 
 ##############
 ## FUNCTIONS
 ##############
 
 CheckIfParameters() {
-	if [ $create == false ] && [ $delete == false ] && [ -z "$groupstring" ] && [ $silent == false ]; then
+	local nbParameters=$1
+	# check if there is parameters
+	if [ $nbParameters -eq 0 ]; then
+		# printf "${c__error}No parameters provided.${nocolor}\n"
+		g_errors+=("No parameters provided")
 		return 1
 	else
 		return 0
 	fi
 }
 CheckMandatoryParams() {
-	if [ -z "$groupstring" ]; then
-		printf "${c__error}parameter ${c__msgVar}-g | --groups${c__error} is mandatory.${nocolor}\n"
-		return 1
+	# if [ -z "$groupstring" ]; then
+	# 	printf "${c__error}parameter ${c__msgVar}-g | --groups${c__error} is mandatory.${nocolor}\n"
+	# 	return 1
+	# fi
+
+	if [ ! -z "$groupedUsersString" ]; then
+		if [ -z "$usersString" ] || [ -z "$groupsString" ]; then
+			g_errors+="${c__error}In order to add users into groups, you must provide users and groups parameters.${nocolor}\n"
+			return 1
+		fi
+	else
+		return 0
 	fi
 }
 
@@ -103,56 +123,331 @@ ManageSkelFiles() {
 			g_errors+=("Failed to copy /etc/skel/$filename")
 		fi
 	done
-	
-	# find "$repSkell" -type f | while read -r file; do
-	# 	local filename=$(basename "$file")
-	# 	if [ -f "/etc/skel/$filename" ]; then
-	# 		printf "  ${c__fctAction}Copying  ${c__msgVar}${filename} ${c__fctAction}...${nocolor}"
-	# 		cp "/etc/skel/$filename" "/etc/skel/$filename" # > /dev/null 2>&1
-	# 		local result=$?
-	# 		if [ $result -eq 0 ]; then
-	# 			printf "${c__success} done${nocolor}\n"
-	# 		else
-	# 			printf "${c__error} failed${nocolor}\n"
-	# 			g_errors+=("Failed to copy /etc/skel/$filename")
-	# 		fi
-	# 	else
-	# 		printf "  ${c__fctAction}File ${c__msgVar}${filename} ${c__warning}not found${nocolor}\n"
-	# 	fi
-	# done
+
+	printf "\n"
 }
 
-CheckIfUserExists() {
+
+CheckIfItemExists() {
+	local item=$1
+	local type=$2
+
+	if [ "$type" == 'user' ]; then
+		printf "  ${c__fctAction}Checking if ${c__value}$item${c__fctAction} is a valid Linux user ...${nocolor}\n"
+		if id -u "$item" >/dev/null 2>&1; then
+			if [ $verbose == true ]; then
+				printf "   ${c__value2}$item${c__fctAction} is a valid Linux user.${nocolor}\n"
+			fi
+			return 0
+		else
+			if [ $verbose == true ]; then
+				printf "   ${c__value2}$item${c__error} is not a valid Linux user.${nocolor}\n"
+			fi
+			return 1
+		fi
+	elif [ "$type" == 'group' ]; then
+		printf "  ${c__fctAction}Checking if ${c__value}$item${c__fctAction} is a valid Linux group ...${nocolor}\n"
+		if ! command -v getent > /dev/null; then
+			gentenvInvalid=true
+			if [ $verbose == true ]; then
+				printf "   ${c__error}command getenv not found${nocolor}\n"
+			fi
+			return 2
+		else
+			if [ $verbose == true ]; then
+				printf "   ${c__fctAction}command getenv found${nocolor}\n"
+			fi
+			gentenvInvalid=false
+
+			# Check if the string is a valid group
+			if getent group "$item" > /dev/null 2>&1; then
+				if [ $verbose == true ]; then
+					printf "   ${c__value2}$item${c__fctAction} is a valid Linux group.${nocolor}\n"
+				fi
+				return 0
+			else
+				if [ $verbose == true ]; then
+					printf "   ${c__value2}$item${c__error} is not a valid Linux group.${nocolor}\n"
+				fi
+				return 1
+			fi
+		fi
+	else
+		printf "${c__error}parameter ${c__msgVar}type${c__error} is mandatory.${nocolor}\n"
+		errors+=("type is mandatory")
+		return 1
+	fi
+}
+
+##################
+## MANAGE GROUPS
+##################
+ManageGroups() {
+	IFS=',' read -r -a groups <<< "${groupsString}"
+
+	if [[ $silent == false ]]; then
+		printf "${c__fctName}Groups: ${nocolor}"
+		for groupname in "${groups[@]}"; do
+			# local usrnm=$(echo "$usrln" | cut -d'/' -f1)
+			printf "${c__value2}${groupname} ${nocolor}"
+		done
+		printf "\n"
+	fi
+
+
+	for groupname in "${groups[@]}"; do		
+
+		# check if grp is not empty
+		if [ -z "$groupname" ]; then
+			g_errors+=("Group name is empty")
+			continue
+		fi
+
+		if [ $gentenvInvalid == false ]; then
+			CheckIfItemExists $groupname 'group'
+			local test=$?
+			if [ $test -eq 1 ]; then # user does not exist
+				printf "   ${c__success}Group ${whiitebold}\"${groupname}\"${c__success} does not exist${nocolor}\n"
+
+				CreateGroup $groupname
+
+			elif [ $test -eq 0 ]; then # user exists
+
+				printf "   ${c__notice}Group ${whiitebold}\"${groupname}\"${c__notice} already exists${nocolor}\n"
+				continue
+
+			elif [ $test -eq 2 ]; then # command getent not found
+
+				if [ $silent == false ]; then
+					printf "   ${c__error}check for \"${groupname}\" fail${nocolor}\n"
+				fi
+
+				continue
+			fi
+		else
+			if [ $silent == false ]; then
+				printf "   ${c__notice}check skip for ${whiitebold}\"${groupname}\"${nocolor}\n"
+			fi
+		fi
+
+	done
+
+	printf "\n"
+}
+
+CreateGroup() {
+	local groupName=$1	
+
+	# check if groupName is not empty
+	if [ -z "$groupName" ]; then
+		printf " ${c__error}Group name is empty${nocolor}\n"
+		g_errors+=("Group name is empty")
+		return 1
+	fi
+
+	if [[ $silent == false ]]; then
+		printf " ${c__fctAction}Creating ${c__value}${groupName}${c__fctAction} ...${nocolor}"
+	fi
+
+	groupadd $groupName > /dev/null 2>&1
+	local grpadded=$?
+	if [ $grpadded -eq 0 ]; then
+		if [[ $silent == false ]]; then
+			printf "${c__success} done${nocolor}\n"
+		fi
+	else
+		if [[ $silent == false ]]; then
+			printf "${c__error} failed${nocolor}\n"
+		fi
+	fi
+}
+
+#################
+## MANAGE USERS
+#################
+ManageUsers() {
+	IFS=',' read -r -a users <<< "${usersString}"
+
+	if [[ $silent == false ]]; then
+		printf "${c__fctName}Users: ${nocolor}"
+		for username in "${users[@]}"; do
+			# local usrnm=$(echo "$usrln" | cut -d'/' -f1)
+			printf "${c__value2}${username} ${nocolor}"
+		done
+		printf "\n"
+	fi
+
+
+	for username in "${users[@]}"; do		
+
+		# check if usr is not empty
+		if [ -z "$username" ]; then
+			g_errors+=("User name is empty")
+			continue
+		fi
+
+
+		if [ $gentenvInvalid == false ]; then
+			CheckIfItemExists $username 'user'
+			local test=$?
+			if [ $test -eq 1 ]; then # user does not exist
+				printf "   ${c__success}User ${whiitebold}\"${username}\"${c__success} does not exist${nocolor}\n"
+
+				CreateUser $username
+
+			elif [ $test -eq 0 ]; then # user exists
+
+				printf "   ${c__notice}User ${whiitebold}\"${username}\"${c__notice} already exists${nocolor}\n"
+				continue
+
+			elif [ $test -eq 2 ]; then # command getent not found
+
+				if [ $silent == false ]; then
+					printf "   ${c__error}check for \"${username}\" fail${nocolor}\n"
+				fi
+
+				continue
+			fi
+		else
+			if [ $silent == false ]; then
+				printf "   ${c__notice}check skip for ${whiitebold}\"${username}\"${nocolor}\n"
+			fi
+		fi
+
+
+	done
+
+	printf "\n"
+}
+
+CheckIfUserInGroup() {
 	local user=$1
-	# printf "${c__fctAction}Checking user ${c__msgVar}${user}${c__fctAction} ...${nocolor}\n"
-	printf "   ${c__fctAction}${c__msgVar}${user}${c__fctAction} ...${nocolor}"
-	getent passwd $user > /dev/null 2>&1
-	local result=$?
-	if [ $result -eq 0 ]; then
-		printf "${c__success} found${nocolor}\n"
-		return 0
-	else
-		printf "${c__warning} not found${nocolor}\n"
-		return 1
-	fi
-}
-CheckIfGroupExists() {
-	local group=$1
-	# printf "${c__fctAction}Checking group ${c__msgVar}${group}${c__fctAction} ...${nocolor}"
-	printf "  ${c__fctAction}${c__msgVar}${group}${c__fctAction} ...${nocolor}"
-	getent group $group > /dev/null 2>&1
-	local result=$?
-	if [ $result -eq 0 ]; then
-		printf "${c__success} found${nocolor}\n"
-		return 0
-	else
-		printf "${c__warning} not found${nocolor}\n"
-		return 1
-	fi
+	# local userFound=1
+	addingGroup=""
+
+	IFS=';' read -r -a groupedUsers <<< "${groupedUsersString}"
+	for groupedUser in "${groupedUsers[@]}"; do
+
+		IFS='=' read -r -a tmp <<< "${groupedUser}"
+		local groupName=${tmp[0]}
+		local grpusrs=(${tmp[1]})
+
+		IFS=',' read -r -a usrs <<< "${grpusrs}"
+
+		for grpusr in "${usrs[@]}"; do
+
+			if [ "$grpusr" == "$user" ]; then
+				# userFound=0
+				addingGroup="$groupName"
+				break
+			fi
+		done
+	done
+	# special variable 
+	REPLY="$addingGroup"
 }
 
+CreateUser() {
+	local usrname=$1	
+
+	# check if usrname is not empty
+	if [ -z "$usrname" ]; then
+		printf " ${c__error}User name is empty${nocolor}\n"
+		g_errors+=("User name is empty")
+		return 1
+	fi
+
+	if [[ $silent == false ]]; then
+		printf " ${c__fctAction}Creating ${c__value}${usrname}${c__fctAction} ...${nocolor}"
+	fi
+
+	addCmd="useradd --create-home $usrname"
+
+	CheckIfUserInGroup $usrname
+	# if group found, create useradd command with -G flag
+	if [ ! -z "$REPLY" ]; then
+		printf " ${c__notice}adding to group ${whiitebold}\"${REPLY}\"${nocolor}"
+		addCmd+=" -G $REPLY"
+	fi
+
+	eval "$addCmd"
+	local usradded=$?
+	if [ $usradded -eq 0 ]; then
+		if [[ $silent == false ]]; then
+			printf " ${c__success}done${nocolor}\n"
+			l_cptUsersCreated=$((l_cptUsersCreated+1))
+		fi
+		userCreated=true
+		usrExists=1
+	else
+		if [[ $silent == false ]]; then
+			printf " ${c__error}failed${nocolor}\n"
+		fi
+		userCreated=false
+		g_errors+=("User $username not created")
+	fi
 
 
+	
+	# ## USER CREATION
+	# useradd --create-home $usrname -G $groupName > /dev/null 2>&1
+	# local usradded=$?
+	# if [ $usradded -eq 0 ]; then
+	# 	if [[ $silent == false ]]; then
+	# 		printf " ${c__success}done${nocolor}\n"
+	# 		l_cptUsersCreated=$((l_cptUsersCreated+1))
+	# 	fi
+	# 	userCreated=true
+	# 	usrExists=1
+	# else
+	# 	if [[ $silent == false ]]; then
+	# 		printf " ${c__error}failed${nocolor}\n"
+	# 	fi
+	# 	userCreated=false
+	# 	g_errors+=("User $username not created")
+	# fi
+}
+
+
+
+
+StartText () {
+	printf "${blue}$commandName script ${nocolor}
+	\n"
+}
+HowToUse() {
+	printf "❓ ${blue}How to use${gray}\n"
+	printf "${whiitebold}This script is made to create users and groups${nocolor}\n"
+	printf "\n"
+	printf "${commandName} -u \"username1,username2,username3,username4\" -g \"group1,group2\" --add \"group1=username1,usernam2;group2=username3\"${nocolor}\n"
+	printf "\n"
+	printf "${whiitebold}Parameters :${gray}\n"
+	printf "  -u  --users  : users to create (separated by a comma) \n"
+	printf "  -g  --groups : groups to create (separated by a comma)\n"
+	printf "  -a  --add    : formated string to set users in groups\n"
+	printf "                 format: group1=username1,username2;group2=username3,username1\n"
+	printf "  --verbose    : show logs\n"
+	printf "  --silent     : hide logs\n"
+	printf "\n"
+	printf "  -h  --help   : show this message\n"
+	printf "${nocolor}\n"
+}
+EndOfScript() {
+	printf "\n"
+
+	# show error messages if there are
+	if [[ ${#g_errors[@]} -gt 0 ]]; then
+		printf "${red}❌ ${#g_errors[@]} error(s)${nocolor}\n"
+		for err in "${g_errors[@]}"; do
+			printf "  ${red}- ${err}${nocolor}\n"
+		done
+	else
+		printf "${green}✅ No error${nocolor}\n"
+	fi
+
+	printf "👋 ${blue}Bye bye${nocolor} 👋\n"
+	printf "\n"
+}
 
 
 Main() {
@@ -293,41 +588,31 @@ Main() {
 	fi
 }
 
-StartText () {
-	printf "🔐 ${blue}$commandName script ${nocolor}🔐
-	\n"
-}
-HowToUse() {
-	printf "❓ ${blue}How to use${gray}\n"
-	printf "${whiitebold}This script is made to create users and groups${nocolor}\n"
-	printf "\n"
-	printf "${commandName} --groups \"group1=username1,sshuser@ip:port/group2=username3,username1\"${nocolor}\n"
-	printf "\n"
-	printf "${whiitebold}Parameters :${gray}\n"
-	printf "  -g  --groups : groups to add users\n"
-	printf "                 format: group1=username1,username2;group2=username3,username1\n"
-	printf "  --verbose    : show logs\n"
-	printf "  --silent     : hide logs\n"
-	printf "\n"
-	printf "  -h  --help   : show this message\n"
-	printf "${nocolor}\n"
-}
 
 ## -----------------------------------------------------------------------
+
+CheckIfParameters $#
+if [ $? -eq 1 ]; then
+	StartText
+	HowToUse
+	exit 1
+fi
 
 # Récupération des paramètres en utilisant getopts
 while [[ $# -gt 0 ]]; do
   case $1 in
-	--create)
-	  create=true
+	-u | --users)
+	  shift
+	  usersString=$1
 	  ;;
-	--delete)
-	  delete=true
-	  ;;
-    -g | --groups)
+	-g | --groups)
       shift
-      groupstring=$1
+      groupsString=$1
       ;;
+	-a | --add)
+	  shift
+	  groupedUsersString=$1
+	  ;;
 	--silent)
 	  silent=true
 	  ;;
@@ -346,12 +631,7 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-CheckIfParameters
-if [ $? -eq 1 ]; then
-	StartText
-	HowToUse
-	exit 1
-fi
+
 
 if [[ $silent == false ]]; then
 	StartText
@@ -364,8 +644,12 @@ if [ $? -eq 1 ]; then
 	exit 1
 fi
 
+
 ManageSkelFiles
-if [[ $silent == false ]]; then
-	printf "\n"
-fi
-Main
+# printf "\n"
+ManageGroups
+# printf "\n"
+ManageUsers
+
+
+EndOfScript

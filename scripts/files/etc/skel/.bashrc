@@ -1,3 +1,7 @@
+###################################
+## PERSONAL .BASHRC CONFIGURATION
+###################################
+
 # ~/.bashrc: executed by bash(1) for non-login shells.
 # see /usr/share/doc/bash/examples/startup-files (in the package bash-doc)
 # for examples
@@ -36,27 +40,3 @@ fi
 if [ -f ~/.bash_aliases ]; then
     . ~/.bash_aliases
 fi
-
-
-### PERSONNAL CONFIGURATION for user root (generate by prettier-shell script)
-# OS Distribution name
-get_os_name ()
-{
-    FILE=/etc/os-release;
-    if test -f "$FILE"; then
-        awk -F= '$1=="ID" { print " "$2 ;}' "$FILE";
-    fi
-}
-# git branch
-parse_git_branch ()
-{
-    git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1) /'
-}
-# host ip
-get_host_ip ()
-{
-    echo "$(last -i | head -n 1 | awk '{print $3}')"
-}
-# PROFILE root
-PS1='\[\e[38;5;251;1m\]\A\[\e[0m\]\[\e[38;5;230;2m\]$(get_os_name)\[\e[0m\] \[\e[38;5;160;1;5m\]\u\[\>💥 '
-### END PERSONNAL CONFIGURATION
