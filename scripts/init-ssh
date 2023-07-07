@@ -65,12 +65,12 @@ existing_denied_groups=()
 ## EDITABLES (does match with system file)
 # sshd_config="../files/etc/ssh/sshd_config"
 # hosts_allow="../files/etc/hosts.allow"
-sshd_config=
-# sshd_config="/etc/ssh/sshd_config"
+# sshd_config=
+sshd_config="/etc/ssh/sshd_config"
 hosts_allow="/etc/hosts.allow"
 
 PWD=$(pwd)
-errors=()
+g_errors=()
 pwd=$(pwd)
 actualpwd=$(pwd)
 gentenvInvalid=false
@@ -101,20 +101,21 @@ CheckMandatoryParams() {
 		printf "${c__fctName}Checking mandatory parameters ...${nocolor}\n"
 	fi
 	
-	# check file parameter
-	if [ $verbose == true ] && [ $silent == false ]; then
-		printf "${c__fctAction}Checking for file parameter ...${nocolor}\n"
-	fi
+	# # check file parameter
+	# if [ $verbose == true ] && [ $silent == false ]; then
+	# 	printf "${c__fctAction}Checking for file parameter ...${nocolor}\n"
+	# fi
 
-	if [[ -z $sshd_config ]]; then
-		printf "${c__error}parameter ${c__msgVar}-f | --file${c__error} is mandatory.${nocolor}\n"
-		errors+=("file is mandatory")
-		isError=true
-	else
-		if [ $verbose == true ] && [ $silent == false ]; then
-			printf "    ${c__fct2}file : ${c__value}${sshd_config}${nocolor}\n"
-		fi
-	fi
+	# if [[ -z $sshd_config ]]; then
+	# 	printf "${c__error}parameter ${c__msgVar}-f | --file${c__error} is mandatory.${nocolor}\n"
+	# 	g_errors+=("file is mandatory")
+	# 	isError=true
+	# else
+	# 	if [ $verbose == true ] && [ $silent == false ]; then
+	# 		printf "    ${c__fct2}file : ${c__value}${sshd_config}${nocolor}\n"
+	# 	fi
+	# fi
+
 
 	# # check ssh port parameter
 	# if [ $verbose == true ] && [ $silent == false ]; then
@@ -123,7 +124,7 @@ CheckMandatoryParams() {
 
 	# if [[ -z $ssh_port ]]; then
 	# 	printf "${c__error}parameter ${c__msgVar}-p | --ssh-port${c__error} is mandatory.${nocolor}\n"
-	# 	errors+=("SSH port is mandatory")
+	# 	g_errors+=("SSH port is mandatory")
 	# 	isError=true
 	# else
 	# 	if [ $verbose == true ] && [ $silent == false ]; then
@@ -140,7 +141,7 @@ CheckMandatoryParams() {
 	# if [[ -z $network_cidr ]]; then
 	# 	printf "${c__error}parameter ${c__msgVar}-n | --network-host${c__error} is mandatory.${nocolor}
 	# 	\n"
-	# 	errors+=("Network IP/CIDR is mandatory")
+	# 	g_errors+=("Network IP/CIDR is mandatory")
 	# 	isError=true
 	# else
 	# 	if [ $verbose == true ] && [ $silent == false ]; then
@@ -202,21 +203,9 @@ CheckIfItemExists() {
 		fi
 	else
 		printf "${c__error}parameter ${c__msgVar}type${c__error} is mandatory.${nocolor}\n"
-		errors+=("type is mandatory")
+		g_errors+=("type is mandatory")
 		return 1
 	fi
-
-	# printf "   ${c__msgVar}${item}${c__fctAction} ...${nocolor}"
-	# getent passwd $item > /dev/null 2>&1
-	# local result=$?
-	# if [ $result -eq 0 ]; then
-	# 	printf "${c__success} found${nocolor}\n"
-	# 	return 0
-	# else
-	# 	printf "${c__error} does not exists${nocolor}.\n"
-	# 	printf "${c__notice}Create user before use this script${nocolor}\n"
-	# 	return 1
-	# fi
 }
 
 
@@ -231,11 +220,13 @@ CheckAllowUsers() {
 				if [ $silent == false ]; then
 					printf "${c__error}check for \"${usr}\" fail${nocolor}\n"
 				fi
+				g_errors+=("${c__error}check for allowed user \"${usr}\" fail${nocolor}")
 			fi
 		else
 			if [ $silent == false ]; then
 				printf "${c__notice}check skip for ${whiitebold}\"${usr}\"${nocolor}\n"
 			fi
+			g_errors+=("${c__notice}check skip for allowed user ${whiitebold}\"${usr}\"${nocolor}")
 		fi
 	done
 }
@@ -271,11 +262,13 @@ CheckAllowGroups() {
 				if [ $silent == false ]; then
 					printf "${c__error}check for \"${grp}\" fail${nocolor}\n"
 				fi
+				g_errors+=("${c__error}check for allowed group \"${grp}\" fail${nocolor}")
 			fi
 		else
 			if [ $silent == false ]; then
 				printf "${c__notice}check skip for ${whiitebold}\"${grp}\"${nocolor}\n"
 			fi
+			g_errors+=("${c__notice}check skip for allowed group ${whiitebold}\"${grp}\"${nocolor}")
 		fi
 	done
 }
@@ -311,11 +304,13 @@ CheckDeniedUsers() {
 				if [ $silent == false ]; then
 					printf "${c__error}check for \"${usr}\" fail${nocolor}\n"
 				fi
+				g_errors+=("${c__error}check for denied user \"${usr}\" fail${nocolor}")
 			fi
 		else
 			if [ $silent == false ]; then
 				printf "${c__notice}check skip for ${whiitebold}\"${usr}\"${nocolor}\n"
 			fi
+			g_errors+=("${c__notice}check skip for denied user ${whiitebold}\"${usr}\"${nocolor}")
 		fi
 	done
 }
@@ -351,11 +346,13 @@ CheckDeniedGroups() {
 				if [ $silent == false ]; then
 					printf "${c__error}check for \"${grp}\" fail${nocolor}\n"
 				fi
+				g_errors+=("${c__error}check for denied group \"${grp}\" fail${nocolor}")
 			fi
 		else
 			if [ $silent == false ]; then
 				printf "${c__notice}check skip for ${whiitebold}\"${grp}\"${nocolor}\n"
 			fi
+			g_errors+=("${c__notice}check skip for denied group ${whiitebold}\"${grp}\"${nocolor}")
 		fi
 	done
 }
@@ -427,28 +424,15 @@ ManageNetwork() {
 			echo "sshd: $network_cidr : ALLOW" >> "$hosts_allow"
 		else
 			if [ $silent == false ]; then
-				printf "${c__fctAction}Network_cidr ${c__value}${network_cidr}${nocolor} already exists in ${c__msgVar}${hosts_allow}${nocolor}\n"
+				printf "${c__notice}Network_cidr ${c__value}${network_cidr}${c__notice} already exists in ${c__msgVar}${hosts_allow}${nocolor}\n"
 			fi
 		fi
-
-		# echo "sshd: $network_cidr : ALLOW" >> "$hosts_allow"
-		# if [ $silent == false ]; then
-		# 	printf "${c__success}file \"$hosts_allow\" updated${nocolor}\n"
-		# fi
 	else
 		if [ $silent == false ]; then
 			printf "${c__error}file \"$hosts_allow\" does not exists. ${graydim}Skip${nocolor}\n"
 		fi
+		g_errors+=("${c__error}file \"$hosts_allow\" does not exists.${nocolor}")
 	fi
-	# if [ $silent == true ] && [ $verbose == true ]; then
-	# 	bash ./update-config -k Port -v $ssh_port --verbose --silent
-	# elif [ $silent == true ]; then
-	# 	bash ./update-config -k Port -v $ssh_port --silent
-	# elif [ $verbose == true ]; then
-	# 	bash ./update-config -k Port -v $ssh_port --verbose
-	# else
-	# 	bash ./update-config -k Port -v $ssh_port
-	# fi
 }
 
 
@@ -469,19 +453,10 @@ DisplayConfig() {
 	cat "$sshd_config"
 }
 
-## LOGS
-GenerateErrorLogs() {
-	local file=$1
-	
-	if [ ${#errors[@]} -gt 0 ]; then
-		if [ ! -f $file ]; then
-			touch $file
-		fi
 
-		printf "%s\n" "${errors[@]}" > $file
-	fi
-}
-
+###########
+## HELPERS
+###########
 
 StartText () {
 	printf "🔐 ${blue}$commandName script ${nocolor}🔐\n"
@@ -493,11 +468,9 @@ HowToUse() {
 	printf "  - It will update network configuration\n"
 	printf "  - It will allow users and groups to connect${nocolor}\n"
 	printf "\n"
-	printf "${commandName} -p 2222 -n 192.168.0.1/24 -u username1,sshuser@ip:port -g group1,group2 -U username3,sshuser@ip:port -G group4${nocolor}\n"
+	printf "${commandName} -p 2222 -n 192.168.0.1/24 -u username1,username2 -g group1,group2 -U username3,username4 -G group4 -f \"/etc/ssh/sshd_config\"${nocolor}\n"
 	printf "\n"
 	printf "${whiitebold}Parameters :${gray}\n"
-	printf "  -f  --file         : SSH config file (/etc/ssh/sshd_config)\n"
-	printf "\n"
 	printf "  -p  --ssh-port     : SSH port\n"
 	printf "  -n  --network-host : Network host\n"
 	printf "\n"
@@ -506,6 +479,8 @@ HowToUse() {
 	printf "  -U  --deny-users   : Denied users to connect through SSH\n"
 	printf "  -G  --deny-groups  : Denied groups to connect through SSH\n"
 	printf "\n"
+	printf "  -f  --file         : SSH config file (default : \"/etc/ssh/sshd_config\")\n"
+	printf "\n"
 	printf "  --verbose    : show logs\n"
 	printf "  --silent     : hide logs\n"
 	printf "\n"
@@ -513,7 +488,22 @@ HowToUse() {
 	printf "${nocolor}\n"
 }
 
+EndOfScript() {
+	printf "\n"
 
+	# show error messages if there are
+	if [[ ${#g_errors[@]} -gt 0 ]]; then
+		printf "${red}❌ ${#g_errors[@]} error(s)${nocolor}\n"
+		for err in "${g_errors[@]}"; do
+			printf "  ${red}- ${err}${nocolor}\n"
+		done
+	else
+		printf "${green}✅ No error${nocolor}\n"
+	fi
+
+	printf "👋 ${blue}Bye bye${nocolor} 👋\n"
+	printf "\n"
+}
 
 
 ## ------------------------------------------------------------------------------------------------------------------------------------ ##
@@ -625,6 +615,6 @@ if [[ "${#denied_groups[@]}" -gt 0 ]]; then
 # 	printf "${c__fctAction}no denied groups to create${nocolor}\n"
 fi
 
-# GenerateErrorLogs $actualpwd/logs/init-ssh-error.log
 
+# EndOfScript
 exit 0

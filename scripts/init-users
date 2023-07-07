@@ -41,7 +41,8 @@ c__success=$green
 ###############
 ## VARIABLES
 ###############
-repSkell="files/etc/skel"
+repSkellSystem="/etc/skel"
+repSkell="files_to_copy/etc/skel"
 pwd=$(pwd)
 actualpwd=$(pwd)
 g_errors=()
@@ -99,11 +100,11 @@ ManageSkelFiles() {
 	find "$repSkell" -type f | while read -r file; do
 		local filename=$(basename "$file")
 		
-		printf "  ${c__fctAction}/etc/skel/${c__msgVar}${filename}"
-		if [ -f "/etc/skel/$filename" ]; then
+		printf "  ${c__fctAction}$repSkellSystem/${c__msgVar}${filename}"
+		if [ -f "$repSkellSystem/$filename" ]; then
 			printf "${c__fctAction} ...${nocolor}"
 
-			mv "/etc/skel/$filename" "/etc/skel/$filename.bak" > /dev/null 2>&1
+			mv "$repSkellSystem/$filename" "$repSkellSystem/$filename.bak" > /dev/null 2>&1
 			local result=$?
 			if [ $result -eq 0 ]; then
 				printf "${c__success} saved${nocolor}"
@@ -112,15 +113,15 @@ ManageSkelFiles() {
 				g_errors+=("renamed failed")
 			fi
 		else
-			printf "\n   ${yellow}not found ${c__fctAction}in ${c__fct2}/etc/skel${nocolor}"
+			printf "\n   ${yellow}not found ${c__fctAction}in ${c__fct2}$repSkellSystem${nocolor}"
 		fi
-		cp "files/etc/skel/$filename" "/etc/skel/$filename" > /dev/null 2>&1
+		cp "$repSkell/$filename" "$repSkellSystem/$filename" > /dev/null 2>&1
 		result=$?
 		if [ $result -eq 0 ]; then
 			printf "${c__fctAction} - ${c__success}copied${nocolor}\n"
 		else
 			printf "${c__fctAction} - ${c__error}copy failed${nocolor}\n"
-			g_errors+=("Failed to copy /etc/skel/$filename")
+			g_errors+=("Failed to copy $repSkellSystem/$filename")
 		fi
 	done
 
