@@ -66,7 +66,7 @@ Options :
 - -t > type (NAT,...)
 
 ## Préparer une machine
-### Flush tout
+### Tout rejeter
 ```sh
 iptables -t filter -P INPUT DROP
 iptables -t filter -P FORWARD DROP

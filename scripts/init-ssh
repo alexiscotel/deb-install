@@ -521,7 +521,7 @@ HowToUse() {
 }
 
 EndOfScript() {
-	printf "${c__fctName}${commandName}${nocolor} - ${c__fct2}Resume${nocolor}\n"
+	printf "\n${c__fctName}${commandName}${nocolor} - ${c__fct2}Resume${nocolor}\n"
 
 	# show error messages if there are
 	if [[ ${#g_errors[@]} -gt 0 ]]; then
@@ -653,7 +653,6 @@ fi
 
 
 EndOfScript
-
 if [[ "$isScriptInError" = true ]]; then
 	exit 1
 else

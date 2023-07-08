@@ -1,5 +1,7 @@
 #!/bin/bash
 
+## TODO: send --slient & --verbose to subscripts
+
 ############
 ## COLORS ##
 ############

@@ -23,123 +23,511 @@ graybold='\033[0;1;38;5;249m'
 graydim='\033[0;2;38;5;250m'
 red='\033[0;91m'
 ## CUSTOM
-# c__fctName='\033[0;38;5;45m'
 c__fctName=$whiitebold
 c__fctAction=$graydim
 c__fct2=$gray
 c__msgVar=$graybold
 c__value=$blue
+c__value2=$purple
 c__error=$red
+c__warning=$orange
+c__notice=$yellow
 c__success=$green
 
 
 ###############
-## PARAMETERS
+## CHECK ROOT
+###############
+# if [ "$EUID" -ne 0 ]; then
+# 	printf "${c__error}Please run this script as root.${nocolor}\n"
+# 	exit 1
+# fi
+
+###############
+## VARIABLES
 ###############
 commandPath=$0
 commandName=`basename "$commandPath"`
 pwd=$(pwd)
 actualpwd=$(pwd)
+g_errors=()
+cmd_iptables_found=false
 
-silent=false
+declare -a g_output=()
+declare -a ssh_rules_input_accept=()
+declare -a ssh_rules_input_drop=()
 
 ##############
 ## ARGUMENTS
 ##############
+verbose=false
+silent=false
 ssh_port=
-network_host=
-network_vm=
+ssh_allowed_ips_str=
+declare -a ssh_allowed_ips=()
+ssh_denied_ips_str=
+declare -a ssh_denied_ips=()
 bastion=
+drop_ssh=true
+
 
 CheckIptables() {
-	# Vérification des paramètres obligatoires
-	printf "${c__fctAction}Checking iptables ...${nocolor}\n"
-	if [[ -z $ssh_port ]]; then
-		printf "${c__error}iptables not found${nocolor}\n"
-		exit 1
+
+	if ! command -v iptables > /dev/null; then
+		cmd_iptables_found=false
+		printf "${c__error}command ${c__fct2}iptables${c__error} not found${nocolor}\n"		
+		return 1
 	else
-		printf "${c__fct2}iptables found${nocolor}\n"
+		cmd_iptables_found=true
+		return 0
 	fi
 }
-
+CheckIfParameters() {
+	if [ -z "$ssh_port" ] && [ -z "$ssh_allowed_ips_str" ] && [ -z "$ssh_denied_ips_str" ] && [ -z "$bastion" ]; then
+		return 1
+	else
+		return 0
+	fi
+}
 CheckMandatoryParams() {
-	printf "${c__fctName}Checking mandatory parameters ...${nocolor}\n"
-
-	# Vérification des paramètres obligatoires
-	printf "${c__fctAction}Checking for SSH Port ...${nocolor}\n"
-	if [[ -z $ssh_port ]]; then
-		printf "${c__error}parameter ${c__msgVar}-s | --sshport${c__error} is mandatory.${nocolor}
-		\n"
-		exit 1
-	else
-		printf "${c__fct2}SSH Port : ${c__value}${ssh_port}${nocolor}\n"
+	if [ $silent == false ]; then
+		printf "${c__fctName}Checking mandatory parameters ...${nocolor}\n"
 	fi
 
-	printf "${c__fctAction}Checking for host network ...${nocolor}\n"
-	if [[ -z $network_host ]]; then
-		printf "${c__error}parameter ${c__msgVar}-n | --network-host${c__error} is mandatory.${nocolor}
-		\n"
-		exit 1
-	else
-		printf "${c__fct2}host network : ${c__value}${network_host}${nocolor}\n"
-	fi
-
-	# printf "${c__fctAction}Checking for VMs network ...${nocolor}\n"
-	# if [[ -z $network_vm ]]; then
-	# 	printf "${c__error}parameter ${c__msgVar}-n | --network-vm${c__error} is mandatory.${nocolor}
-	# 	\n"
-	# 	exit 1
-	# else
-	# 	printf "${c__fct2}VMs network : ${c__value}${network_vm}${nocolor}\n"
-	# fi
-
-	# printf "${c__fctAction}Checking for localhost IP ...${nocolor}\n"
-	# if [[ -z $localhostIP ]]; then
-	# 	printf "${c__error}parameter ${c__msgVar}-i | --localhostIP${c__error} is mandatory.${nocolor}
-	# 	\n"
-	# 	exit 1
-	# else
-	# 	printf "${c__fct2}localhostIP : ${c__value}${localhostIP}${nocolor}\n"
-	# fi
-
-	printf "\n${c__success}Mandatory parameters OK${nocolor}
-	\n"
-}
-
-
-ManageICMP(){
-	printf "${c__fctName}Adding ICMP rule ...${nocolor}\n"
-	# rules for ping
-	iptables > /dev/null
-	if [[ $? -eq 0 ]]; then
-		iptables -t filter -A INPUT -p icmp -j ACCEPT
-		iptables -t filter -A OUTPUT -p icmp -j ACCEPT
-	else
-		printf "${c__error}iptables not found${nocolor}
-		\n"
-		exit 1
+	# CHECK SSH
+	if [ $verbose == true ] && [ $silent == false ]; then
+		printf "${c__fctAction}Checking for SSH Port ...${nocolor}\n"
 	fi
 	
-	printf "\n${c__success}ICMP rules added${nocolor}
-	\n"
-}
-
-ManageSSH(){
-	printf "${c__fctName}Adding SSH rule for ${blue}${network_host}:${ssh_port}${c__funcName} ...${nocolor}\n"
-
-	iptables > /dev/null
-	if [[ $? -eq 0 ]]; then
-		iptables -I INPUT -p tcp --dport $ssh_port -j DROP
-		iptables -I INPUT -s $network_host -p tcp --dport $ssh_port -j ACCEPT
+	if [[ -z $ssh_port ]]; then
+		mand_errors+=("${c__error}parameter ${c__msgVar}-s | --sshport${c__error} is mandatory.${nocolor}")
 	else
-		printf "${c__error}iptables not found${nocolor}
-		\n"
-		exit 1
+		if [ $verbose == true ]; then
+			printf "${c__fct2}SSH Port : ${c__value}${ssh_port}${nocolor}\n"
+		fi
 	fi
 
-	printf "\n${c__success}SSH rules added${nocolor}
-	\n"
+	# # CHECK ALLOW IP
+	# if [ $verbose == true ] && [ $silent == false ]; then
+	# 	printf "${c__fctAction}Checking for ssh allow ips ...${nocolor}\n"
+	# fi
+
+	# if [[ -z $ssh_allowed_ips_str ]]; then
+	# 	mand_errors+=("${c__error}parameter ${c__msgVar}-i | --allow-ip${c__error} is mandatory.${nocolor}")
+	# else
+	# 	if [ $verbose == true ]; then
+	# 		printf "${c__fct2}SSH allowed IPs : ${c__value}${ssh_allowed_ips_str[*]}${nocolor}\n"
+	# 	fi
+	# fi
+
+	# # CHECK DENY IP
+	# if [ $verbose == true ] && [ $silent == false ]; then
+	# 	printf "${c__fctAction}Checking for ssh denied ips ...${nocolor}\n"
+	# fi
+
+	# if [[ -z $ssh_denied_ips_str ]]; then
+	# 	mand_errors+=("${c__error}parameter ${c__msgVar}-I | --deny-ip${c__error} is mandatory.${nocolor}")
+	# else
+	# 	if [ $verbose == true ]; then
+	# 		printf "${c__fct2}SSH denied IPs : ${c__value}${ssh_denied_ips_str[*]}${nocolor}\n"
+	# 	fi
+	# fi
+
+	# # CHECK BASTION
+	# if [ $verbose == true ] && [ $silent == false ]; then
+	# 	printf "${c__fctAction}Checking for bastion IP ...${nocolor}\n"
+	# fi
+
+	# if [[ -z $bastion ]]; then
+	# 	mand_errors+=("${c__error}parameter ${c__msgVar}-b | --bastion${c__error} is mandatory.${nocolor}")
+	# else
+	# 	if [ $verbose == true ]; then
+	# 		printf "${c__fct2}Bastion : ${c__value}${bastion}${nocolor}\n"
+	# 	fi
+	# fi
+
+	# check if mand_errors contains errors and show them
+	if [ ${#mand_errors[@]} -gt 0 ]; then
+		if [ $silent == false ]; then
+			for i in "${mand_errors[@]}"; do
+				printf "${i}\n"
+			done
+		fi
+		return 1
+	else
+		if [ $silent == false ]; then
+			printf "${c__success}Mandatory parameters OK${nocolor}
+			\n"
+		fi
+		return 0
+	fi
+
 }
+
+check_valid_ip_cidr() {
+	local input="$1"
+
+	printf "${c__fct2}Checking ${c__value}${ip}${nocolor} validity ... ${nocolor}"
+
+	# Validate IP with CIDR format
+	if [[ $input =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/[0-9]+$ ]]; then
+		# Split the IP and CIDR
+		local ip="${input%/*}"
+		local cidr="${input#*/}"
+
+		# Validate IP address
+		if [[ $ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+			# Validate CIDR
+			if [[ $cidr =~ ^[0-9]+$ ]] && [[ $cidr -ge 0 ]] && [[ $cidr -le 32 ]]; then
+				printf "${c__success}OK.${nocolor}\n"
+				return 0
+			else
+				printf "${c__error}KO (invalid CIDR).${nocolor}\n"
+				g_errors+=("${c__error}check_valid_ip_cidr - invalid CIDR : ${c__value}${cidr}${nocolor}")
+				return 3
+			fi
+		else
+			printf "${c__error}KO (Invalid IP).${nocolor}\n"
+			g_errors+=("${c__error}check_valid_ip_cidr - invalid IP : ${c__value}${ip}${nocolor}")
+			return 2
+		fi
+	else
+		printf "${c__error}KO (Invalid IP or CIDR).${nocolor}\n"
+		g_errors+=("${c__error}check_valid_ip_cidr - invalid IP or CIDR : ${c__value}${input}${nocolor}")
+		return 1
+	fi
+}
+
+
+# ManageICMP(){
+# 	printf "${c__fctName}Adding ICMP rule ...${nocolor}\n"
+# 	# rules for ping
+# 	iptables > /dev/null
+# 	if [[ $? -eq 0 ]]; then
+# 		iptables -t filter -A INPUT -p icmp -j ACCEPT
+# 		iptables -t filter -A OUTPUT -p icmp -j ACCEPT
+# 	else
+# 		if [ "$verbose" == true]; then
+# 			printf "${c__error}iptables not found${nocolor}\n"
+# 		fi
+# 		g_errors+=("${c__error}ManageICMP - iptables not found${nocolor}")
+# 		exit 1
+# 	fi
+	
+# 	printf "\n${c__success}ICMP rules added${nocolor}
+# 	\n"
+# }
+
+
+
+FindRule() {
+	local rule_str=$1
+
+	local ip=$2
+	local port=$3
+	local chain=$4 # INPUT or OUTPUT
+	local target=$5 # ACCEPT or DROP
+
+	if [ $verbose == true ]; then
+		printf "${c__fct2}Checking ${c__value2}${target} ${chain}${c__fct2} rule for IP ${c__value}${ip}${c__fct2} on port ${c__value}${port}${c__fct2}  ...${nocolor}"
+	fi	
+
+	# List iptables rules and search for the rule
+	local checkrule=$(iptables -S | grep -F "$rule_str")
+
+	# Check if the rule is found
+	if [[ -n $checkrule ]]; then
+		printf " ${c__notice}found.${nocolor}"
+		return 1
+	else
+		printf " ${c__success}not found.${nocolor}"
+		return 0
+	fi
+}
+
+FormatRules() {
+	local stringRule=$1
+	local ipstring=$2
+	local port=$3
+	local chain=$4 # INPUT or OUTPUT
+	local target=$5 # ACCEPT or DROP
+
+	# local arrays
+	local accept=()
+	local drop=()
+
+
+	# if [ -z "$drop_all" ]; then
+	# 	drop_all=false
+	# fi
+
+	printf "${c__fctName}${stringRule}${nocolor}\n"
+	# if [ $drop_all == true ]; then
+	# 	printf " - ${c__notice}Drop rule asked${nocolor}\n"
+	# else
+	# 	printf "\n"
+	# fi
+
+
+	# check if array is empty
+	if [ -z "$ipstring" ]; then
+		printf "${c__warning}No IPs provided${c__fctAction}. Skip${nocolor}\n"
+		return 2
+	fi
+	IFS=',' read -r -a ips <<< "${ipstring}"
+
+	if [ -z "$port" ]; then
+		printf "${c__warning}No port associated${c__fctAction}. Skip${nocolor}\n"
+		return 1
+	fi
+
+	
+
+	if [[ $verbose == true ]]; then
+		printf "${c__fct2}IPs: ${nocolor}"
+		for ip in "${ips[@]}"; do
+			printf "${c__value}${ip} ${nocolor}"
+		done
+		printf "\n"
+	fi
+
+	
+
+	for ip in "${ips[@]}"; do		
+
+		if [ -z "$ip" ]; then
+			g_errors+=("Allowed IP is empty")
+			continue
+		fi
+
+		check_valid_ip_cidr "$ip"
+		if [ $? -ne 0 ]; then
+			# g_errors+=("${c__fct2}${ip}${c__error} is not a valid ip with ")
+			continue
+		fi
+
+		printf "${c__fctAction}Formating rule for ${c__fct2}${ip}${nocolor}\n"
+
+		local rule="${chain} -s ${ip} -p tcp -m tcp --dport ${port} -j ${target}"
+
+		# check if rule already exists
+		FindRule "$rule" "$ip" "$port" "$chain" "$target"
+		if [ $? -ne 0 ]; then
+			printf " ${c__fctAction}Skip${nocolor}\n"
+			continue
+		else
+			printf "\n"
+		fi
+
+		if [ "$verbose" == true ]; then
+			printf "${c__fctAction}Creating rule ${c__fct2}${rule}${nocolor}\n"
+		fi
+		accept+=("${rule}")
+
+	done
+
+	
+	# # ! Add drop rule only if there is at least one accept rule
+	# if [ ${#accept[@]} -eq 0 ]; then
+	# 	printf "${c__warning}No accept rules to add${nocolor}\n"
+	# 	return 2
+	# else
+	# 	# insert drop rule for SSH to all ips
+	# 	if [ "$drop_all" = true ]; then
+	# 		drop+=("iptables -I INPUT -p tcp --dport $port -j DROP")
+	# 	fi
+	# fi
+
+	g_output=()
+	# # add drop rules first
+	# for line in "${drop[@]}"; do
+	# 	g_output+=("$line")
+	# done
+	# add accept rules
+	for line in "${accept[@]}"; do
+		g_output+=("$line")
+	done
+	
+	# check if array is empty
+	if [ ${#g_output[@]} -eq 0 ]; then
+		if [ "$verbose" == true ]; then
+			printf "${c__warning}No rules to add.${nocolor}\n"
+		fi
+		return 2
+	else
+		# show each line of output array
+		printf "${c__fct2}Formated rules: ${c__fctName}${#g_output[@]}${nocolor}\n"
+		if [ "$silent" == false ]; then
+			for line in "${g_output[@]}"; do
+				printf "${c__fctAction}${line}${nocolor}\n"
+			done
+		fi
+		return 0
+	fi
+}
+
+InsertRules() {
+	local rules=("$@")
+	# check if rules contains rules and show them
+	if [ ${#rules[@]} -gt 0 ]; then
+		# insert rules
+		local ruleCount=0
+		local errorOnRule=false
+		for rule in "${rules[@]}"; do
+
+			if [ $silent == false ]; then
+				printf "${c__fct2}Execute rule ${c__value}${rule}${nocolor} ... "
+			fi
+
+			iptables -I $rule > /dev/null 2>&1
+			local test=$?
+			if [ $test -eq 0 ]; then
+				if [ $silent == false ]; then
+					printf "${c__success}Done.${nocolor}\n"
+				fi
+				ruleCount=$((ruleCount+1))
+			else
+				if [ $silent == false ]; then
+					printf "${c__error}Error.${nocolor}\n"
+				fi
+				g_errors+=("${c__error}Error while adding rule ${c__fct2}${rule}${nocolor}")
+				errorOnRule=true
+				break
+			fi
+		done
+
+		if [ $errorOnRule == false ]; then
+			printf "${c__success}All rules added.${nocolor}\n"
+			return 0
+		else
+			printf "${c__error}Error while adding rules.${nocolor}\n"
+			if [ $silent == false ] && [ $ruleCount -gt 0 ]; then
+				printf "  ${c__warning}Only ${c__value2}${ruleCount}${c__error} rules added.${nocolor}\n"
+			fi
+
+			# with iptables, remove rules that were added before error
+			if [ "$cmd_iptables_found" = true ] && [ $ruleCount -gt 0 ]; then
+				local l_errors=()
+				for (( i=0; i<$ruleCount; i++ )); do
+					printf "  ${c__notice}Removing rule ${c__value2}${rules[$i]}${nocolor} ... "
+
+					iptables -D INPUT 1
+					local test=$?
+					if [ $test -eq 0 ]; then
+						printf "${c__success}Done.${nocolor}\n"
+					else
+						printf "${c__error}Error.${nocolor}\n"
+						l_errors+=("${c__error}Error while removing rule ${c__fct2}\"${rules[$i]}\"${nocolor}")
+					fi
+				done
+
+				if [ ${#l_errors[@]} -gt 0 ]; then
+					if [ $silent == false ]; then
+						for err in "${l_errors[@]}"; do
+							g_errors+=("${i}")
+						done
+					fi
+					return 2
+				else
+					printf "${c__success}All rules removed.${nocolor}\n"
+					return 1
+				fi
+			elif [ $ruleCount -gt 0 ]; then
+				printf "  ${c__notice}You must remove rules manually ${c__warning}(iptables not found)${nocolor}\n"
+				return 2
+			else
+				printf "${c__error}iptables not found${nocolor}\n"
+				return 1
+			fi
+
+
+		fi
+	else
+		if [ $silent == false ]; then
+			printf "${c__warning}No rules to add.${nocolor}\n"
+		fi
+		return 1
+	fi
+}
+
+
+
+ManageSSHDenyRules() {
+	FormatRules "Format SSH rules for denied ips" "$ssh_denied_ips_str" "$ssh_port" "INPUT" "DROP"
+	local result=$?
+	if [ $result -eq 1 ]; then
+		printf "${c__error}❌ Error while formatting denied SSH rules${nocolor}\n"
+		return 1
+	elif [ $result -eq 2 ]; then
+		return 2
+	else
+		# get values from g_output array
+		ssh_rules_input_drop=("${g_output[@]}")
+
+		if [ ${#ssh_rules_input_drop[@]} -gt 0 ]; then
+			printf "\n${c__fctName}Add SSH rules for denied IPs${nocolor}\n"
+			InsertRules "${ssh_rules_input_drop[@]}"
+		else
+			if [ $silent != true ]; then
+				printf "${c__fctAction}No SSH rules for denied IPs${nocolor}\n"
+			fi
+		fi
+
+	fi
+}
+
+ManageSSHAllowRules() {
+	FormatRules "Format SSH rules for allowed ips" "$ssh_allowed_ips_str" "$ssh_port" "INPUT" "ACCEPT"
+	local result=$?
+	if [ $result -eq 1 ]; then
+		printf "${c__error}❌ Error while formatting allowed SSH rules${nocolor}\n"
+		return 1
+	elif [ $result -eq 2 ]; then
+		return 2
+	else
+		# get values from g_output array
+		ssh_rules_input_accept=("${g_output[@]}")
+
+		if [ ${#ssh_rules_input_accept[@]} -gt 0 ]; then
+			printf "\n${c__fctName}Add SSH rules for allowed IPs${nocolor}\n"
+			InsertRules "${ssh_rules_input_accept[@]}"
+		else
+			if [ $silent != true ]; then
+				printf "${c__fctAction}No SSH rules for allowed IPs${nocolor}\n"
+			fi
+		fi
+
+	fi
+}
+
+
+
+
+
+
+# ApplyRules() {
+# 	local rules_input_drop=$1
+# 	local rules_input_accept=$2
+# 	# insert drop rule for SSH to all ips
+# 	if [ ${#rules_input_drop[@]} -gt 0 ]; then
+# 		printf "${c__fctAction}Start inserting ${c__value2}${#rules_input_drop[@]}${c__fctAction} for INPUT DROP${nocolor}\n"
+# 		InsertRules "${rules_input_drop[@]}"
+# 	else
+# 		if [ $silent == false ]; then
+# 			printf "${c__fctAction}No INPUT DROP rules${nocolor}\n"
+# 		fi
+# 	fi
+
+# 	# insert accept rules for SSH to all ips
+# 	if [ ${#rules_input_accept[@]} -gt 0 ]; then
+# 		printf "${c__fctAction}Start inserting ${c__value2}${#rules_input_accept[@]}${c__fctAction} for INPUT ACCEPT${nocolor}\n"
+# 		InsertRules "${rules_input_accept[@]}"
+# 	else
+# 		if [ $silent == false ]; then
+# 			printf "${c__fctAction}No INPUT ACCEPT rules${nocolor}\n"
+# 		fi
+# 	fi
+# }
 
 # ManageResponse(){
 # 	# si une machine établie une connexion, on laisser passer la communication
@@ -148,37 +536,56 @@ ManageSSH(){
 # }
 
 
-
 StartText () {
-printf "${blue}$commandName${whiitebold} script ${nocolor}
-
-${whiitebold}This script is used to configure iptables on PROXMOX server.
-
-${yellow}🚨 By default, PROXMOX allow ssh connection from local network.
-${nocolor}\n"
+	printf "${blue}$commandName script ${nocolor}\n"
 }
 HowToUse() {
-printf "❓ ${blue}How to use${gray}
+	printf "❓ ${blue}How to use${gray}\n"
+	printf "${whiitebold}This script is used to configure iptables for entire system.${nocolor}\n"
+	printf "\n"
+	printf "${commandName} -p 2222 -b 192.168.0.10 -s "192.168.0.1/24,172.0.0.1/24" -S "10.10.10.1/24,10.10.200" --verbose --slient${nocolor}\n"
+	printf "\n"
+	printf "${whiitebold}Parameters :${gray}\n"
+	printf "    -p  --sshport   : SSH port\n"
+	printf "    -b  --bastion   : Access point to connect to this machine\n"
+	printf "    -s  --ssh-allow : Array of allowed ips to connect throught SSH\n"
+	printf "    -S  --ssh-deny  : Array of denied ips to connect throught SSH\n"
+	printf "\n"
+	printf "  --verbose         : show logs\n"
+	printf "  --silent          : hide logs\n"
+	printf "\n"
+	printf "  -h  --help        : show this message\n"
+	printf "${nocolor}\n"
+}
 
-${commandName} -p 2222 -n 192.168.0.1/24 -u username1,sshuser@ip:port -g group1,group2 -U username3,sshuser@ip:port -G group4${nocolor}
+EndOfScript() {
+	printf "\n${c__fctName}${commandName}${nocolor} - ${c__fct2}Resume${nocolor}\n"
 
-${whiitebold}Parameters :${gray}
-    -p  --sshport      : SSH port
-    -h  --network-host : host network
-    -v  --network-vm   : VMs Network
-    -b  --bastion   : Bastion, to connect to VMs
-${nocolor}\n"
+	# show error messages if there are
+	if [[ ${#g_errors[@]} -gt 0 ]]; then
+		printf "${c__error}❌ ${#g_errors[@]} error(s)${nocolor}\n"
+		for err in "${g_errors[@]}"; do
+			printf "  ${c__error}- ${err}${nocolor}\n"
+		done
+		isScriptInError=true
+	else
+		# if [[ $silent == false ]]; then
+			printf "${green}✅ No error${nocolor}\n"
+		# fi
+	fi
+
+	if [[ $silent == false ]]; then
+		printf "👋 ${blue}Bye bye${nocolor} 👋\n"
+	fi
 }
 
 ## ------------------------------------------------------------------------------------------------------------------------------------ ##
 
 # CheckIfRoot
 
-if [[ silent == false ]]; then
-	StartText
-fi
 
-CheckIptables
+
+
 
 # Récupération des paramètres en utilisant getopts
 while [[ $# -gt 0 ]]; do
@@ -187,23 +594,31 @@ while [[ $# -gt 0 ]]; do
       shift
       ssh_port=$1
       ;;
-    -h | --network-host)
+    -s | --ssh-allow)
       shift
-      network_host=$1
+      ssh_allowed_ips_str=$1
       ;;
-    -v | --network-vm)
+    -S | --ssh-deny)
       shift
-      network_vm=$1
+      ssh_denied_ips_str=$1
       ;;
 	-b | --bastion)
 	  shift
 	  bastion=$1
 	  ;;
+	--drop-ssh)
+	  shift
+	  drop_ssh=true
+	  ;;
+	--verbose)
+		shift
+		verbose=true
+		;;
     --silent)
 		shift
 		silent=true
 		;;
-	--help)
+	-h | --help)
 	HowToUse
 	exit 0
 		;;
@@ -215,8 +630,37 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-CheckMandatoryParams
+CheckIfParameters
+if [ $? -eq 1 ]; then
+	StartText
+	HowToUse
+	exit 1
+fi
 
-# ManageICMP
-ManageSSH
-# ManageResponse
+# CheckIptables
+# if [ $? -eq 1 ]; then
+# 	exit 1
+# fi
+
+if [[ "$silent" == false ]]; then
+	StartText
+fi
+
+
+CheckMandatoryParams
+if [ $? -eq 1 ]; then
+	exit 1
+fi
+
+
+ManageSSHDenyRules
+printf "\n"
+ManageSSHAllowRules
+
+
+EndOfScript
+if [[ ${#g_errors[@]} -gt 0 ]]; then
+	exit 1
+else
+	exit 0
+fi
