@@ -1,8 +1,5 @@
 #!/bin/bash
 
-## * 🚧 TODO
-#  * - bastion : rebond avec interfaces entrée / sortie
-
 ############
 ## COLORS ##
 ############
@@ -38,10 +35,10 @@ c__success=$green
 ###############
 ## CHECK ROOT
 ###############
-# if [ "$EUID" -ne 0 ]; then
-# 	printf "${c__error}Please run this script as root.${nocolor}\n"
-# 	exit 1
-# fi
+if [ "$EUID" -ne 0 ]; then
+	printf "${c__error}Please run this script as root.${nocolor}\n"
+	exit 1
+fi
 
 ###############
 ## VARIABLES
@@ -70,10 +67,13 @@ ssh_allowed_ips_str=
 declare -a ssh_allowed_ips=()
 ssh_denied_ips_str=
 declare -a ssh_denied_ips=()
-bastion=
 drop_ssh=false
 active_icmp=false
 
+
+########################
+## VALIDATOR FUNCTIONS
+########################
 
 CheckIptables() {
 
@@ -87,15 +87,10 @@ CheckIptables() {
 	fi
 }
 CheckIfParameters() {
-	# if [ -z "$ssh_port" ] || [ -z "$ssh_allowed_ips_str" ] && [ -z "$ssh_denied_ips_str" ] && [ -z "$bastion" ]; then
-	# 	return 1
-	# else
-	# 	return 0
-	# fi
 
 	if ([ ! -z "$ssh_allowed_ips_str" ] && [ ! -z "$ssh_denied_ips_str" ]) &&  [ -z "$ssh_port" ]; then
 		return 1
-	elif [ -z "$ssh_port" ] && [ -z "$ssh_allowed_ips_str" ] && [ -z "$ssh_denied_ips_str" ] && [ -z "$bastion" ] && [ "$active_icmp" = false ] && [ "$drop_ssh" = false ]; then
+	elif [ -z "$ssh_port" ] && [ -z "$ssh_allowed_ips_str" ] && [ -z "$ssh_denied_ips_str" ] && [ "$active_icmp" = false ] && [ "$drop_ssh" = false ]; then
 		return 1
 	else
 		return 0
@@ -111,7 +106,6 @@ CheckMandatoryParams() {
 	# if ssh_allowed_ips_str or ssh_denied_ips_str is not empty, check that ssh_port is not empty
 	if [ "$ssh_allowed_ips_str" != "" ] || [ "$ssh_denied_ips_str" != "" ]; then
 		if [ "$ssh_port" == "" ]; then
-			# printf "${c__error}parameter ${c__msgVar}-s | --ssh-port${c__error} is mandatory.${nocolor}\n"
 			mand_errors+=("${c__error}parameter ${c__msgVar}-p | --ssh-port${c__error} is mandatory.${nocolor}")
 		fi
 	fi
@@ -119,11 +113,11 @@ CheckMandatoryParams() {
 	# if ssh_port is not empty, check that ssh_allowed_ips_str or ssh_denied_ips_str have at least one ip
 	if [ "$ssh_port" != "" ]; then
 		if [ "$ssh_allowed_ips_str" == "" ] && [ "$ssh_denied_ips_str" == "" ]; then
-			# printf "${c__error}parameter ${c__msgVar}-s | --allow-ip${c__error} or ${c__msgVar}-d | --deny-ip${c__error} is mandatory.${nocolor}\n"
 			mand_errors+=("${c__error}parameter ${c__msgVar}-s | --ssh-allow${c__error} or ${c__msgVar}-S | --ssh-deny${c__error} is mandatory.${nocolor}")
 		fi
 	fi
 
+	# check if ssh_allowed_ips_str contains valid IPs
 	if [ "$ssh_allowed_ips_str" != "" ]; then
 		IFS=',' read -r -a tmp <<< "${ssh_allowed_ips_str}"
 		CheckIfIPsArrayOK "${tmp[@]}"
@@ -133,6 +127,7 @@ CheckMandatoryParams() {
 		fi
 	fi
 
+	# check if ssh_denied_ips_str contains valid IPs
 	if [ "$ssh_denied_ips_str" != "" ]; then
 		IFS=',' read -r -a tmp <<< "${ssh_denied_ips_str}"
 		CheckIfIPsArrayOK "${tmp[@]}"
@@ -141,63 +136,7 @@ CheckMandatoryParams() {
 			mand_errors+=("${c__error}parameter ${c__msgVar}-S | --ssh-deny${c__error} is not valid.${nocolor}")
 		fi
 	fi
-
 	
-	
-
-
-
-	# CHECK SSH
-	# if [ $verbose == true ] && [ $silent == false ]; then
-	# 	printf "${c__fctAction}Checking for SSH Port ...${nocolor}\n"
-	# fi
-	
-	# if [[ -z $ssh_port ]]; then
-	# 	mand_errors+=("${c__error}parameter ${c__msgVar}-s | --ssh-port${c__error} is mandatory.${nocolor}")
-	# else
-	# 	if [ $verbose == true ]; then
-	# 		printf "${c__fct2}SSH Port : ${c__value}${ssh_port}${nocolor}\n"
-	# 	fi
-	# fi
-
-	# # CHECK ALLOW IP
-	# if [ $verbose == true ] && [ $silent == false ]; then
-	# 	printf "${c__fctAction}Checking for ssh allow ips ...${nocolor}\n"
-	# fi
-
-	# if [[ -z $ssh_allowed_ips_str ]]; then
-	# 	mand_errors+=("${c__error}parameter ${c__msgVar}-s | --allow-ip${c__error} is mandatory.${nocolor}")
-	# else
-	# 	if [ $verbose == true ]; then
-	# 		printf "${c__fct2}SSH allowed IPs : ${c__value}${ssh_allowed_ips_str[*]}${nocolor}\n"
-	# 	fi
-	# fi
-
-	# # CHECK DENY IP
-	# if [ $verbose == true ] && [ $silent == false ]; then
-	# 	printf "${c__fctAction}Checking for ssh denied ips ...${nocolor}\n"
-	# fi
-
-	# if [[ -z $ssh_denied_ips_str ]]; then
-	# 	mand_errors+=("${c__error}parameter ${c__msgVar}-S | --deny-ip${c__error} is mandatory.${nocolor}")
-	# else
-	# 	if [ $verbose == true ]; then
-	# 		printf "${c__fct2}SSH denied IPs : ${c__value}${ssh_denied_ips_str[*]}${nocolor}\n"
-	# 	fi
-	# fi
-
-	# # CHECK BASTION
-	# if [ $verbose == true ] && [ $silent == false ]; then
-	# 	printf "${c__fctAction}Checking for bastion IP ...${nocolor}\n"
-	# fi
-
-	# if [[ -z $bastion ]]; then
-	# 	mand_errors+=("${c__error}parameter ${c__msgVar}-b | --bastion${c__error} is mandatory.${nocolor}")
-	# else
-	# 	if [ $verbose == true ]; then
-	# 		printf "${c__fct2}Bastion : ${c__value}${bastion}${nocolor}\n"
-	# 	fi
-	# fi
 
 	# check if mand_errors contains errors and show them
 	if [ ${#mand_errors[@]} -gt 0 ]; then
@@ -220,9 +159,9 @@ CheckMandatoryParams() {
 check_valid_ip_cidr() {
 	local input="$1"
 
-	# if [ "$verbose" == true ]; then
+	if [ $silent == false ]; then
 		printf "${c__fctAction}Checking ${c__value}${input}${nocolor} validity ... ${nocolor}"
-	# fi
+	fi
 
 	# Validate IP with CIDR format
 	if [[ $input =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/[0-9]+$ ]]; then
@@ -234,20 +173,28 @@ check_valid_ip_cidr() {
 		if [[ $ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
 			# Validate CIDR
 			if [[ $cidr =~ ^[0-9]+$ ]] && [[ $cidr -ge 0 ]] && [[ $cidr -le 32 ]]; then
-				printf "${c__success}OK.${nocolor}\n"
+				if [ $silent == false ]; then
+					printf "${c__success}OK.${nocolor}\n"
+				fi
 				return 0
 			else
-				printf "${c__error}KO (invalid CIDR).${nocolor}\n"
+				if [ $silent == false ]; then
+					printf "${c__error}KO (invalid CIDR).${nocolor}\n"
+				fi
 				g_errors+=("${c__error}check_valid_ip_cidr - invalid CIDR : ${c__value}${cidr}${nocolor}")
 				return 3
 			fi
 		else
-			printf "${c__error}KO (Invalid IP).${nocolor}\n"
+			if [ $silent == false ]; then
+				printf "${c__error}KO (Invalid IP).${nocolor}\n"
+			fi
 			g_errors+=("${c__error}check_valid_ip_cidr - invalid IP : ${c__value}${ip}${nocolor}")
 			return 2
 		fi
 	else
-		printf "${c__error}KO (Invalid IP or CIDR).${nocolor}\n"
+		if [ $silent == false ]; then
+			printf "${c__error}KO (Invalid IP or CIDR).${nocolor}\n"
+		fi
 		g_errors+=("${c__error}check_valid_ip_cidr - invalid IP or CIDR : ${c__value}${input}${nocolor}")
 		return 1
 	fi
@@ -277,6 +224,9 @@ CheckIfIPsArrayOK() {
 	fi
 }
 
+####################
+## RULES FUNCTIONS
+####################
 
 FindRule() {
 	local rule_str=$1
@@ -320,7 +270,6 @@ FormatRules() {
 		return 1
 	fi
 
-	
 
 	if [[ $verbose == true ]]; then
 		printf "${c__fct2}IPs: ${nocolor}"
@@ -330,7 +279,6 @@ FormatRules() {
 		printf "\n"
 	fi
 
-	
 
 	for ip in "${ips[@]}"; do		
 
@@ -341,7 +289,6 @@ FormatRules() {
 
 		check_valid_ip_cidr "$ip"
 		if [ $? -ne 0 ]; then
-			# g_errors+=("${c__fct2}${ip}${c__error} is not a valid ip with ")
 			continue
 		fi
 
@@ -353,7 +300,6 @@ FormatRules() {
 
 		if [ "$force_insert" = false ]; then
 			# check if rule already exists
-			# FindRule "$rule" "$ip" "$port" "$chain" "$target"
 			printf "${c__fct2}Checking ${c__value2}${target} ${chain}${c__fct2} rule for IP ${c__value}${ip}${c__fct2} on port ${c__value}${port}${c__fct2}  ...${nocolor}"
 			FindRule "$rule"
 			if [ $? -ne 0 ]; then
@@ -430,7 +376,7 @@ InsertRules() {
 		done
 
 		if [ $errorOnRule == false ]; then
-			printf "${c__success}All rules added.${nocolor}\n"
+			printf "${c__fctName}${ruleCount} ${c__success}rules added.${nocolor}\n"
 			return 0
 		else
 			printf "${c__error}Error while adding rules.${nocolor}\n"
@@ -483,63 +429,57 @@ InsertRules() {
 	fi
 }
 
+######################
+## MANAGER FUNCTIONS
+######################
 
 ManageDropSSHRule() {
 	force_insert=false
-	# insert drop rule for SSH to all ips
 	
 	printf "🚨 ${c__fctName}Insert DROP ALL rule for SSH on port ${ssh_port}${nocolor}"
-	# ! Add drop rule only if there is at least one accept rule
-	# if [ "$drop_ssh" = true ]; then
 		
-		IFS=',' read -r -a allwd_ips <<< "${ssh_allowed_ips_str}"
+	IFS=',' read -r -a allwd_ips <<< "${ssh_allowed_ips_str}"
 
-		if [ ${#allwd_ips[@]} -gt 0 ]; then
-			printf "\n"
+	if [ ${#allwd_ips[@]} -gt 0 ]; then
+		printf "\n"
 			CheckIfIPsArrayOK "${allwd_ips[@]}"
-			local test=$?
-			if [ $test -eq 0 ]; then
-				local drop=()
-				local droprule="INPUT -p tcp -m tcp --dport ${ssh_port} -j DROP"
+		local test=$?
+		if [ $test -eq 0 ]; then
+			local drop=()
+			local droprule="INPUT -p tcp -m tcp --dport ${ssh_port} -j DROP"
 
-				printf "${c__fct2}Checking DROP rule ...${nocolor}"
+			printf "${c__fct2}Checking DROP rule ...${nocolor}"
 
-				FindRule "$droprule"
-				if [ $? -ne 0 ]; then
-					printf " ${c__fctAction}Skip${nocolor}\n"
-					g_notices+=("${c__notice}SSH DROP RULE allready exists${nocolor}")
-					return 3
-				else
-					printf " ${c__success}added${nocolor}\n"
-					drop+=("${droprule}")
-				fi
+			FindRule "$droprule"
+			if [ $? -ne 0 ]; then
+				printf " ${c__fctAction}Skip${nocolor}\n"
+				g_notices+=("${c__notice}SSH DROP RULE allready exists${nocolor}")
+				return 3
+			else
+				printf " ${c__success}added${nocolor}\n"
+				drop+=("${droprule}")
+			fi
 
-				if [ ${#drop[@]} -gt 0 ]; then
-					printf "\n${c__fctName}Inserting SSH DROP rule${nocolor}\n"
-					InsertRules "${drop[@]}"
-					local test=$?
-					if [ $test -eq 0 ]; then
-						# printf "${c__success}SSH DROP rule added.${nocolor}\n"
-						force_insert=true
-						return 0
-					fi
-				else
-					printf "${c__fctAction}No SSH DROP rule to add${nocolor}\n"
-					return 2
+			if [ ${#drop[@]} -gt 0 ]; then
+				printf "\n${c__fctName}Inserting SSH DROP rule${nocolor}\n"
+				InsertRules "${drop[@]}"
+				local test=$?
+				if [ $test -eq 0 ]; then
+					force_insert=true
+					return 0
 				fi
 			else
-				# printf " : ${c__error}Ips are invalid.${nocolor}\n"
-				return 1
+				printf "${c__fctAction}No SSH DROP rule to add${nocolor}\n"
+				return 2
 			fi
 		else
-			printf " : ${c__notice}Skip because of no ACCEPT rules${nocolor}\n"
-			g_notices+=("${c__notice}DROP rule not apply because of no ACCEPT rules")
-			return 2
+			return 1
 		fi
-	# else
-	# 	printf "${c__fct2} skipped.${nocolor}\n"
-	# 	return 2
-	# fi
+	else
+		printf " : ${c__notice}Skip because of no ACCEPT rules${nocolor}\n"
+		g_notices+=("${c__notice}DROP rule not apply because of no ACCEPT rules")
+		return 2
+	fi
 }
 
 
@@ -550,7 +490,6 @@ ManageSSHDenyRules() {
 		printf "${c__error}❌ Error while formatting denied SSH rules${nocolor}\n"
 		return 1
 	elif [ $result -eq 2 ]; then
-		# g_notices+=("${c__notice}No SSH rules to add for denied IPs${nocolor}")
 		return 2
 	else
 		# get values from g_output array
@@ -575,7 +514,6 @@ ManageSSHAllowRules() {
 		printf "${c__error}❌ Error while formatting allowed SSH rules${nocolor}\n"
 		return 1
 	elif [ $result -eq 2 ]; then
-		# g_notices+=("${c__notice}No SSH rules to add for allowed IPs${nocolor}")
 		return 2
 	else
 		# get values from g_output array
@@ -584,6 +522,7 @@ ManageSSHAllowRules() {
 		if [ ${#ssh_rules_input_accept[@]} -gt 0 ]; then
 			printf "\n${c__fctName}Add SSH rules for allowed IPs${nocolor}\n"
 			InsertRules "${ssh_rules_input_accept[@]}"
+			printf "\n"
 		else
 			if [ $silent != true ]; then
 				printf "${c__fctAction}No SSH rules for allowed IPs${nocolor}\n"
@@ -603,7 +542,6 @@ ManageICMPRules() {
 	InsertICMPRule "$icmp_rule_input" "INPUT"
 	local result=$?
 	if [ $result -eq 1 ]; then
-		# printf "${c__error}❌ Error while adding ICMP ${c__fct2}INPUT${c__error} rule${nocolor}\n"
 		g_errors+=("${c__error}Error while adding ICMP ${c__fct2}INPUT${c__error} rule${nocolor}")
 		return 1
 	elif [ $result -eq 2 ]; then
@@ -614,7 +552,6 @@ ManageICMPRules() {
 	InsertICMPRule "$icmp_rule_output" "OUTPUT"
 	result=$?
 	if [ $result -eq 1 ]; then
-		# printf "${c__error}❌ Error while adding ICMP ${c__fct2}OUTPUT${c__error} rule${nocolor}\n"
 		g_errors+=("${c__error}Error while adding ICMP ${c__fct2}OUTPUT${c__error} rule${nocolor}")
 		return 1
 	elif [ $result -eq 2 ]; then
@@ -656,14 +593,10 @@ InsertICMPRule() {
 	fi
 }
 
-ManageBastionRules() {
-	printf "${c__fctName}Format bastion rules${nocolor}\n"
 
-}
-
-
-
-
+######################
+## DISPLAY FUNCTIONS
+######################
 
 StartText () {
 	printf "${blue}$commandName script ${nocolor}\n"
@@ -676,11 +609,10 @@ HowToUse() {
 	printf "   DROP rules are inserts BEFORE ACCEPT rules.${nocolor}\n"
 
 	printf "\n"
-	printf "${commandName} -p 2222 -b 192.168.0.10 -s "192.168.0.1/24,172.0.0.1/24" -S "10.10.10.1/24,10.10.72.0/16" --icmp --drop-ssh --verbose --slient${nocolor}\n"
+	printf "${commandName} -p 22 -s "192.168.0.1/24,172.0.0.1/24" -S "10.10.10.1/24,10.10.72.0/16" --icmp --drop-ssh --verbose --slient${nocolor}\n"
 	printf "\n"
 	printf "${whiitebold}Parameters :${gray}\n"
 	printf "    -p  --ssh-port   : SSH port\n"
-	printf "    -b  --bastion   : Access point to connect to this machine\n"
 	printf "\n"
 	printf "    -s  --ssh-allow : Array of allowed ips to connect throught SSH (CIDR must be present)\n"
 	printf "    -S  --ssh-deny  : Array of denied ips to connect throught SSH (CIDR must be present)\n"
@@ -706,9 +638,9 @@ EndOfScript() {
 		done
 		isScriptInError=true
 	else
-		# if [[ $silent == false ]]; then
-			printf "${green}✅ No error${nocolor}\n"
-		# fi
+		if [[ $silent == false ]]; then
+			printf "${c__fctAction}✅ No error${nocolor}\n"
+		fi
 	fi
 
 	# show warning messages if there are
@@ -717,6 +649,10 @@ EndOfScript() {
 		for warn in "${g_warnings[@]}"; do
 			printf "  ${c__warning}- ${warn}${nocolor}\n"
 		done
+	else
+		if [[ $silent == false ]]; then
+			printf "${c__fctAction}✅ No warning${nocolor}\n"
+		fi
 	fi
 
 	# show notice messages if there are
@@ -725,6 +661,16 @@ EndOfScript() {
 		for notice in "${g_notices[@]}"; do
 			printf "  ${c__notice}- ${notice}${nocolor}\n"
 		done
+	else
+		if [[ $silent == false ]]; then
+			printf "${c__fctAction}✅ No notice${nocolor}\n"
+		fi
+	fi
+
+	# show iptables rules
+	if [[ $verbose == true ]]; then
+		printf "\n${c__fctName}iptables review${nocolor}\n"
+		iptables -L -n -v
 	fi
 
 	if [[ $silent == false ]]; then
@@ -734,58 +680,49 @@ EndOfScript() {
 
 ## ------------------------------------------------------------------------------------------------------------------------------------ ##
 
-# CheckIfRoot
-
-
-
-
-
 # Récupération des paramètres en utilisant getopts
 while [[ $# -gt 0 ]]; do
-  case $1 in
-    -p | --ssh-port)
-      shift
-      ssh_port=$1
-      ;;
-    -s | --ssh-allow)
-      shift
-      ssh_allowed_ips_str=$1
-      ;;
-    -S | --ssh-deny)
-      shift
-      ssh_denied_ips_str=$1
-      ;;
-	-b | --bastion)
-	  shift
-	  bastion=$1
-	  ;;
-	--icmp)
-	  shift
-	  active_icmp=true
-	  ;;
-	--drop-ssh)
-	  shift
-	  drop_ssh=true
-	  ;;
-	--verbose)
-		shift
-		verbose=true
-		;;
-    --silent)
-		shift
-		silent=true
-		;;
-	-h | --help)
-	HowToUse
-	exit 0
-		;;
-	*)
-      echo "Option invalide: $1"
-      exit 1
-      ;;
-  esac
-  shift
+	case $1 in
+		-p | --ssh-port)
+			shift
+			ssh_port=$1
+			;;
+		-s | --ssh-allow)
+			shift
+			ssh_allowed_ips_str=$1
+			;;
+		-S | --ssh-deny)
+			shift
+			ssh_denied_ips_str=$1
+			;;
+		--icmp)
+			active_icmp=true
+			#   shift
+			;;
+		--drop-ssh)
+			drop_ssh=true
+			#   shift
+			;;
+		--verbose)
+			verbose=true
+			# shift
+			;;
+		--silent)
+			silent=true
+			# shift
+			;;
+		-h | --help)
+			HowToUse
+			exit 0
+			;;
+		*)
+			echo "Option invalide: $1"
+			exit 1
+			;;
+	esac
+	shift
 done
+
 
 CheckIfParameters
 if [ $? -eq 1 ]; then
@@ -809,6 +746,7 @@ if [ $? -eq 1 ]; then
 fi
 
 
+
 if [ "$drop_ssh" = true ]; then
 	ManageDropSSHRule
 	test=$?
@@ -819,23 +757,16 @@ if [ "$drop_ssh" = true ]; then
 fi
 
 
-
-
-# ManageBastionRules
-
 if [ ! -z "$ssh_denied_ips_str" ]; then
-	# printf "\n"
 	ManageSSHDenyRules
 fi
 
 if [ ! -z "$ssh_allowed_ips_str" ]; then
-	# printf "\n"
 	ManageSSHAllowRules
 fi
 
 
 if [ $active_icmp == true ]; then
-	# printf "\n"
 	ManageICMPRules
 fi
 

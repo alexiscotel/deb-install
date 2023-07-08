@@ -57,9 +57,13 @@ ssh_allowed_users=""
 ssh_allowed_groups=""
 ssh_denied_users=""
 ssh_denied_groups=""
+# [IPTABLES]
+ssh_allowed_ips=""
+ssh_denied_ips=""
+active_icmp=true
+drop_ssh=false
 # [NETWORK]
 network_host=""
-bastion_ip=""
 
 # . "$confFile"
 ## - VARIABLES
@@ -103,7 +107,7 @@ LoadConfig(){
 	# . "$confFile"
 	source "$confFile"
 
-	if [ $proxmox == false ] && [ $init_users == false ] && [ $init_ssh == false ] && [ $init_iptables == false ] && [ $init_iptables_vm == false ] && [ -z "$network_host" ] && [ -z "$bastion_ip" ]; then
+	if [ $proxmox == false ] && [ $init_users == false ] && [ $init_ssh == false ] && [ $init_iptables == false ] && [ $init_iptables_vm == false ] && [ -z "$network_host" ]; then
 		printf "${orange}No action parameter active. In ${whiitebold}${confFile}${orange}, enable at least one ${whiitebold}init_*${orange} parameter${nocolor}\n"
 		exit 1
 	else
@@ -137,7 +141,6 @@ DisplayConfig() {
 
 	printf "${c__fct2}[NETWORK]${nocolor}\n"
 	printf "${c__fctAction}Network host${nocolor}: ${c__value}$network_host${nocolor}\n"
-	printf "${c__fctAction}Bastion IP${nocolor}: ${c__value}$bastion_ip${nocolor}\n"
 	printf "\n"
 
 	printf "${c__fct2}[USERS]${nocolor}"
@@ -169,14 +172,11 @@ DisplayConfig() {
 	printf "${c__fct2}[IP-TABLES]${nocolor}"
 	if [ "$init_iptables" = true ]; then
 		printf " ${c__success}active${nocolor}\n"
-	else
-		printf " ${c__notice}inactive${nocolor}\n"
-	fi
-	printf "\n"
 
-	printf "${c__fct2}[IP-TABLES-VM]${nocolor}"
-	if [ "$init_iptables_vm" = true ]; then
-		printf " ${c__success}active${nocolor}\n"
+		printf "${c__fctAction}SSH allowed IPs${nocolor}: ${c__value}$ssh_allowed_ips${nocolor}\n"
+		printf "${c__fctAction}SSH denied IPs${nocolor}: ${c__value}$ssh_denied_ips${nocolor}\n"
+		printf "${c__fctAction}ICMP rules active${nocolor}: ${c__value}$active_icmp${nocolor}\n"
+		printf "${c__fctAction}DROP ALL rule active ${nocolor}: ${c__value}$drop_ssh${nocolor}\n"
 	else
 		printf " ${c__notice}inactive${nocolor}\n"
 	fi
@@ -289,23 +289,49 @@ InitIptables() {
 	printf "${c__fctName}iptables initialization${nocolor}"
 	if [ $init_iptables == true ]; then
 		printf "\n"
-		bash init-iptables $ssh_port $network_host
-		if [ $? -eq 1 ]; then
-			printf "${c__error}iptables initialization failed${nocolor}\n"
-			return 1
+
+		if [ -z "$network_host" ]; then
+			printf "  ${c__cancel}network_host is empty.${nocolor}\n"
+		else
+			printf "${c__fct2}Adding network host IP to allowed IPs ...${nocolor}"
 		fi
 
-		printf "${c__fctName}iptables init for VMs${nocolor}"
-		if [ $init_iptables_vm == true ]; then
-			printf "\n"
-			bash init-iptables-vm $ssh_port $network_host $bastion
-			if [ $? -eq 1 ]; then
-				printf "${c__error}iptables init for VMs failed${nocolor}\n"
-				return 1
-			fi
-			printf "${c__success}iptables init for VMs end.${nocolor}\n"
+		IFS=',' read -r -a tmp <<< "${ssh_allowed_ips}"
+		# check if array contains elements
+		if [[ ${#tmp[@]} -eq 0 ]]; then
+			printf "  ${c__cancel}no IP to manage.${nocolor}\n"
 		else
-			printf " ${c__cancel}pass${nocolor}\n"
+			local allwd_ips=()
+			# check if network_host not empty
+			if [ ! -z "$network_host" ]; then
+				# add network_host to allwd_ips array
+				allwd_ips+=("${network_host}")
+			fi
+			printf " ${c__success}done${nocolor}\n"
+
+			# push all IPs in allwd_ips array
+			for ip in "${tmp[@]}"; do
+				allwd_ips+=("${ip}")
+			done
+
+			ssh_allowed_ips=$(IFS=,; echo "${allwd_ips[*]}")
+		fi
+
+
+		local cmd="init-iptables -p ${ssh_port} -s ${ssh_allowed_ips} -S ${ssh_denied_ips}"
+		if [ "$active_icmp" = true ]; then
+			cmd+=" --icmp"
+		fi
+
+		if [ "$drop_ssh" = true ]; then
+			cmd+=" --drop-ssh"
+		fi
+
+		bash $cmd --silent
+		local test=$?
+		if [ $test -eq 1 ]; then
+			printf "${c__error}iptables initialization failed${nocolor}\n"
+			return 1
 		fi
 
 		printf "${c__success}iptables initialization end.${nocolor}\n"
@@ -392,21 +418,21 @@ Main(){
 	# fi
 	## < USERS INITIALIZATION
 
-	## > SSH CONFIG
-	InitSSH
-	if [ $? -eq 1 ]; then
-		# printf "${c__error}SSH initialization failed${nocolor}\n"
-		return 1
-	fi
-	## < SSH CONFIG
-
-	# ## > IPTABLES CONFIG
-	# InitIptables
+	# ## > SSH CONFIG
+	# InitSSH
 	# if [ $? -eq 1 ]; then
-	# 	printf "${c__error}Iptables initialization failed${nocolor}\n"
+	# 	# printf "${c__error}SSH initialization failed${nocolor}\n"
 	# 	return 1
 	# fi
-	# ## < IPTABLES CONFIG
+	# ## < SSH CONFIG
+
+	## > IPTABLES CONFIG
+	InitIptables
+	if [ $? -eq 1 ]; then
+		printf "${c__error}Iptables initialization failed${nocolor}\n"
+		return 1
+	fi
+	## < IPTABLES CONFIG
 }
 
 
@@ -437,10 +463,6 @@ while [[ $# -gt 0 ]]; do
     #   shift
     #   network_host=$1
     #   ;;
-	# --bastion)
-	#   shift
-	#   bastion_ip=$1
-	#   ;;
     # --users-groups)
 	#   shift
 	#   groups_str=$1
