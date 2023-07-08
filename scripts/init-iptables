@@ -542,14 +542,18 @@ StartText () {
 HowToUse() {
 	printf "❓ ${blue}How to use${gray}\n"
 	printf "${whiitebold}This script is used to configure iptables for entire system.${nocolor}\n"
+
+	printf " ${c__notice}🚨 Warning\n"
+	printf "   DROP rules are inserts BEFORE ACCEPT rules.${nocolor}\n"
+
 	printf "\n"
 	printf "${commandName} -p 2222 -b 192.168.0.10 -s "192.168.0.1/24,172.0.0.1/24" -S "10.10.10.1/24,10.10.200" --verbose --slient${nocolor}\n"
 	printf "\n"
 	printf "${whiitebold}Parameters :${gray}\n"
 	printf "    -p  --sshport   : SSH port\n"
 	printf "    -b  --bastion   : Access point to connect to this machine\n"
-	printf "    -s  --ssh-allow : Array of allowed ips to connect throught SSH\n"
-	printf "    -S  --ssh-deny  : Array of denied ips to connect throught SSH\n"
+	printf "    -s  --ssh-allow : Array of allowed ips to connect throught SSH (CIDR must be present)\n"
+	printf "    -S  --ssh-deny  : Array of denied ips to connect throught SSH (CIDR must be present)\n"
 	printf "\n"
 	printf "  --verbose         : show logs\n"
 	printf "  --silent          : hide logs\n"
