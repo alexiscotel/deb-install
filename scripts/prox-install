@@ -457,47 +457,46 @@ Main(){
 	## > DISABLE ENTERPRISE MESSAGES
 	if [[ $proxmox == true ]]; then
 		PVEentreprise
-
 		printf "\n"
 	fi	
 	## < DISABLE ENTERPRISE MESSAGES
 
 	## > UPDATE SYSTEM
-	# UpdateSystem
+	UpdateSystem
 	## < UDPATE SYSTEM
 
 	## > USERS INITIALIZATION
-	# InitUsers
-	# if [ $? -eq 1 ]; then
-	# 	# printf "${c__error}Users initialization failed${nocolor}\n"
-	# 	return 1
-	# fi
+	InitUsers
+	if [ $? -eq 1 ]; then
+		# printf "${c__error}Users initialization failed${nocolor}\n"
+		return 1
+	fi
 	## < USERS INITIALIZATION
 
-	# ## > SSH CONFIG
-	# InitSSH
-	# if [ $? -eq 1 ]; then
-	# 	# printf "${c__error}SSH initialization failed${nocolor}\n"
-	# 	return 1
-	# fi
-	# ## < SSH CONFIG
+	## > SSH CONFIG
+	InitSSH
+	if [ $? -eq 1 ]; then
+		# printf "${c__error}SSH initialization failed${nocolor}\n"
+		return 1
+	fi
+	## < SSH CONFIG
 
-	# ## > IPTABLES CONFIG
-	# InitIptables
-	# if [ $? -eq 1 ]; then
-	# 	printf "${c__error}Iptables initialization failed${nocolor}\n"
-	# 	return 1
-	# fi
-	# ## < IPTABLES CONFIG
+	## > IPTABLES CONFIG
+	InitIptables
+	if [ $? -eq 1 ]; then
+		printf "${c__error}Iptables initialization failed${nocolor}\n"
+		return 1
+	fi
+	## < IPTABLES CONFIG
 
 
-	# ## > FAIL2BAN CONFIG
-	# InitFail2ban
-	# if [ $? -eq 1 ]; then
-	# 	printf "${c__error}Fail2ban initialization failed${nocolor}\n"
-	# 	return 1
-	# fi
-	# ## < FAIL2BAN CONFIG
+	## > FAIL2BAN CONFIG
+	InitFail2ban
+	if [ $? -eq 1 ]; then
+		printf "${c__error}Fail2ban initialization failed${nocolor}\n"
+		return 1
+	fi
+	## < FAIL2BAN CONFIG
 }
 
 
