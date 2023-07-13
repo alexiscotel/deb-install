@@ -38,14 +38,15 @@ c__success=$green
 ###################
 ## FILE VARIABLES
 ###################
-# confFile="prox.conf"
-confFile=""
+confFile="prox.conf"
+# confFile=""
 # [GLOBAL]
 proxmox=false
 init_users=false
 init_ssh=false
 init_iptables=false
 init_iptables_vm=false
+init_fail2ban=false
 # [USERS]
 users=""
 groups=""
@@ -64,6 +65,7 @@ active_icmp=true
 drop_ssh=false
 # [NETWORK]
 network_host=""
+bastion_ip=""
 
 # . "$confFile"
 ## - VARIABLES
@@ -85,7 +87,9 @@ if [ "$EUID" -ne 0 ]; then
 	exit 1
 fi
 
-
+#########################
+## CONFIG FILE FUNCTION
+#########################
 CheckIfConfFileExists() {
 	# check if confFile is not empty
 	if [ -z "$confFile" ]; then
@@ -119,8 +123,64 @@ LoadConfig(){
 	printf "\n"
 }
 DisplayConfig() {
-	printf "${c__fctName}Initialisation required for :${nocolor}\n"
-	printf " - ${c__fct2}network${nocolor}\n"
+	printf "${c__fct2}[NETWORK]${nocolor}\n"
+	printf "${c__fctAction}Network host${nocolor}: ${c__value}$network_host${nocolor}\n"
+	printf "${c__fctAction}Bastion${nocolor}: ${c__value}$bastion_ip${nocolor}\n"
+	# printf "\n"
+
+	printf "${c__fct2}[USERS]${nocolor}"
+	if [ "$init_users" = true ]; then
+		printf " ${c__success}active${nocolor}\n"
+
+		printf "${c__fctAction}users string${nocolor}: ${c__value}$users${nocolor}\n"
+		printf "${c__fctAction}groups string${nocolor}: ${c__value}$groups${nocolor}\n"
+		printf "${c__fctAction}users_in_groups string${nocolor}: ${c__value}$users_in_groups${nocolor}\n"
+	else
+		printf " ${c__notice}inactive${nocolor}\n"
+	fi
+	# printf "\n"
+
+	printf "${c__fct2}[SSH]${nocolor}"
+	if [ "$init_ssh" = true ]; then
+		printf " ${c__success}active${nocolor}\n"
+
+		printf "${c__fctAction}SSH Port${nocolor}: ${c__value}$ssh_port${nocolor}\n"
+		printf "${c__fctAction}Allow users${nocolor}: ${c__value}$ssh_allowed_users${nocolor}\n"
+		printf "${c__fctAction}Allow groups${nocolor}: ${c__value}$ssh_allowed_groups${nocolor}\n"
+		printf "${c__fctAction}Denied users${nocolor}: ${c__value}$ssh_denied_users${nocolor}\n"
+		printf "${c__fctAction}Denied groups${nocolor}: ${c__value}$ssh_denied_groups${nocolor}\n"
+	else
+		printf " ${c__notice}inactive${nocolor}\n"
+	fi
+	# printf "\n"
+
+	printf "${c__fct2}[IP-TABLES]${nocolor}"
+	if [ "$init_iptables" = true ]; then
+		printf " ${c__success}active${nocolor}\n"
+
+		printf "${c__fctAction}SSH allowed IPs${nocolor}: ${c__value}$ssh_allowed_ips${nocolor}\n"
+		printf "${c__fctAction}SSH denied IPs${nocolor}: ${c__value}$ssh_denied_ips${nocolor}\n"
+		printf "${c__fctAction}ICMP rules active${nocolor}: ${c__value}$active_icmp${nocolor}\n"
+		printf "${c__fctAction}DROP ALL rule active ${nocolor}: ${c__value}$drop_ssh${nocolor}\n"
+	else
+		printf " ${c__notice}inactive${nocolor}\n"
+	fi
+	# printf "\n"
+
+	printf "${c__fct2}[FAIL2BAN]${nocolor}"
+	if [ "$init_fail2ban" = true ]; then
+		printf " ${c__success}active${nocolor}\n"
+	else
+		printf " ${c__notice}inactive${nocolor}\n"
+	fi
+	printf "\n"
+
+
+	if [ "$proxmox" = true ] || [ "$init_users" = true ] || [ "$init_ssh" = true ] || [ "$init_iptables" = true ] || [ "$init_iptables_vm" = true ] || [ "$init_fail2ban" = true ]; then
+		printf "${c__fctName}Initialisation required for${nocolor}\n"
+
+	fi
+	# printf " - ${c__fct2}network${nocolor}\n"
 
 	if [ "$proxmox" = true ]; then
 		printf " - ${c__fct2}proxmox${nocolor}\n"
@@ -137,53 +197,16 @@ DisplayConfig() {
 	if [ "$init_iptables_vm" = true ]; then
 		printf " - ${c__fct2}VMs iptables${nocolor}\n"
 	fi
-	printf "\n"
-
-	printf "${c__fct2}[NETWORK]${nocolor}\n"
-	printf "${c__fctAction}Network host${nocolor}: ${c__value}$network_host${nocolor}\n"
-	printf "\n"
-
-	printf "${c__fct2}[USERS]${nocolor}"
-	if [ "$init_users" = true ]; then
-		printf " ${c__success}active${nocolor}\n"
-
-		printf "${c__fctAction}users string${nocolor}: ${c__value}$users${nocolor}\n"
-		printf "${c__fctAction}groups string${nocolor}: ${c__value}$groups${nocolor}\n"
-		printf "${c__fctAction}users_in_groups string${nocolor}: ${c__value}$users_in_groups${nocolor}\n"
-	else
-		printf " ${c__notice}inactive${nocolor}\n"
+	if [ "$init_fail2ban" = true ]; then
+		printf " - ${c__fct2}fail2ban${nocolor}\n"
 	fi
-	printf "\n"	
-
-	printf "${c__fct2}[SSH]${nocolor}"
-	if [ "$init_ssh" = true ]; then
-		printf " ${c__success}active${nocolor}\n"
-
-		printf "${c__fctAction}SSH Port${nocolor}: ${c__value}$ssh_port${nocolor}\n"
-		printf "${c__fctAction}Allow users${nocolor}: ${c__value}$ssh_allowed_users${nocolor}\n"
-		printf "${c__fctAction}Allow groups${nocolor}: ${c__value}$ssh_allowed_groups${nocolor}\n"
-		printf "${c__fctAction}Denied users${nocolor}: ${c__value}$ssh_denied_users${nocolor}\n"
-		printf "${c__fctAction}Denied groups${nocolor}: ${c__value}$ssh_denied_groups${nocolor}\n"
-	else
-		printf " ${c__notice}inactive${nocolor}\n"
-	fi
-	printf "\n"
-
-	printf "${c__fct2}[IP-TABLES]${nocolor}"
-	if [ "$init_iptables" = true ]; then
-		printf " ${c__success}active${nocolor}\n"
-
-		printf "${c__fctAction}SSH allowed IPs${nocolor}: ${c__value}$ssh_allowed_ips${nocolor}\n"
-		printf "${c__fctAction}SSH denied IPs${nocolor}: ${c__value}$ssh_denied_ips${nocolor}\n"
-		printf "${c__fctAction}ICMP rules active${nocolor}: ${c__value}$active_icmp${nocolor}\n"
-		printf "${c__fctAction}DROP ALL rule active ${nocolor}: ${c__value}$drop_ssh${nocolor}\n"
-	else
-		printf " ${c__notice}inactive${nocolor}\n"
-	fi
-	printf "\n"
+	# printf "\n"
 	
 }
 
+#####################
+## PROXMOX FUNCTION
+#####################
 PVEentreprise() {
 	local isError=false
 	printf "${c__fctName}Deactivating enterprise messages ...${nocolor}\n"
@@ -232,6 +255,9 @@ PVEentreprise() {
 
 }
 
+####################
+## SYSTEM FUNCTION
+####################
 UpdateSystem() {
 	printf "${c__fctName}System initialization${nocolor}\n"
 	apt update
@@ -243,6 +269,10 @@ UpdateSystem() {
 	printf "\n${c__success}System initialization end.${nocolor}\n"
 }
 
+
+#####################
+## SCRIPTS FUNCTION
+#####################
 InitUsers() {
 	printf "${c__fctName}Users initialization${nocolor}"
 	if [ $init_users == true ]; then
@@ -342,6 +372,30 @@ InitIptables() {
 	return 0
 }
 
+InitFail2ban() {
+	printf "${c__fctName}fail2ban initialization${nocolor}"
+	if [ $init_fail2ban == true ]; then
+		printf "\n"
+
+		bash init-fail2ban --silent
+		local test=$?
+		if [ $test -eq 1 ]; then
+			printf "${c__error}fail2ban initialization failed${nocolor}\n"
+			return 1
+		fi
+
+		printf "${c__success}fail2ban initialization end.${nocolor}\n"
+	else
+		printf " ${c__cancel}pass${nocolor}\n"
+	fi
+	printf "\n"
+	return 0
+}
+
+
+######################
+## DISPLAY FUNCTIONS
+######################
 
 StartText () {
 	clear
@@ -349,8 +403,7 @@ StartText () {
 	printf "\n"
 	printf "${whiitebold}This script is made to configure a fresh Proxmox server installation\n"
 	printf "Create users and groups, protect with SSH and IPTABLES\n"
-	printf "Follow the next steps to configure it !${nocolor}\n"
-	printf "${yellow}TODO: implements fail2ban security${nocolor}\n"
+	printf "configuration file can be edited at ${c__value}\"${confFile}\"${nocolor}\n"
 	printf "\n"
 }
 HowToUse() {
@@ -397,6 +450,9 @@ EndOfScript() {
 }
 
 
+##################
+## MAIN FUNCTION
+##################
 Main(){
 	## > DISABLE ENTERPRISE MESSAGES
 	if [[ $proxmox == true ]]; then
@@ -426,13 +482,22 @@ Main(){
 	# fi
 	# ## < SSH CONFIG
 
-	## > IPTABLES CONFIG
-	InitIptables
-	if [ $? -eq 1 ]; then
-		printf "${c__error}Iptables initialization failed${nocolor}\n"
-		return 1
-	fi
-	## < IPTABLES CONFIG
+	# ## > IPTABLES CONFIG
+	# InitIptables
+	# if [ $? -eq 1 ]; then
+	# 	printf "${c__error}Iptables initialization failed${nocolor}\n"
+	# 	return 1
+	# fi
+	# ## < IPTABLES CONFIG
+
+
+	# ## > FAIL2BAN CONFIG
+	# InitFail2ban
+	# if [ $? -eq 1 ]; then
+	# 	printf "${c__error}Fail2ban initialization failed${nocolor}\n"
+	# 	return 1
+	# fi
+	# ## < FAIL2BAN CONFIG
 }
 
 

@@ -53,14 +53,15 @@ g_warnings=()
 g_notices=()
 
 src_dir="files_to_copy/etc/fail2ban"
-dst_dir="system/etc/fail2ban"
+dst_dir="/etc/fail2ban"
+
 
 ##############
 ## ARGUMENTS
 ##############
 verbose=false
 silent=false
-
+# dst_dir=""
 
 
 ########################
@@ -73,35 +74,61 @@ CheckCommands() {
 	# 	errors+=("fail2ban is not installed")
 	# fi
 
-	if ! command -v fail2ban-client > /dev/null; then
-		errors+=("fail2ban-client is not installed")
+	if ! command -v apt-get > /dev/null; then
+		printf "${c__error}apt-get is not installed${nocolor}\n"
+		return 1
 	fi
 
+	if ! command -v fail2ban-client > /dev/null; then
+		printf "${c__error}fail2ban-client is not installed${nocolor}\n"
+		return 2
+	fi
+
+	return 0
+
 	# check if errors contains errors and show them
-	if [ ${#errors[@]} -gt 0 ]; then
-		for err in "${errors[@]}"; do
-			printf "${c__error}${err}${nocolor}\n"
-		done
+	# if [ ${#errors[@]} -gt 0 ]; then
+	# 	for err in "${errors[@]}"; do
+	# 		printf "${c__error}${err}${nocolor}\n"
+	# 	done
+	# 	return 1
+	# else
+	# 	return 0
+	# fi
+}
+CheckIfParameters() {
+	if [ -z "$dst_dir" ]; then
 		return 1
 	else
 		return 0
 	fi
 }
-CheckIfParameters() {
-	return 0
-}
 
 CheckMandatoryParams() {
 	# check if script has parameters
-	if [ $# -eq 0 ]; then
-		return 0
-	fi
+	# if [ $# -eq 0 ]; then
+	# 	return 0
+	# fi
 
-	if [ $silent == false ]; then
+	if [ $verbose == true ]; then
 		printf "${c__fctName}Checking mandatory parameters ...${nocolor}\n"
 	fi
 
 	## Check mandatory parameters
+
+	# check file parameter
+	# if [ $verbose == true ] && [ $silent == false ]; then
+	# 	printf "${c__fctAction}Checking for file parameter ...${nocolor}\n"
+	# fi
+	# echo "dst_dir : $dst_dir"
+	# if [[ -z $dst_dir ]]; then
+	# 	printf "${c__error}parameter ${c__msgVar}-d | --dst-dir${c__error} is mandatory.${nocolor}\n"
+	# 	mand_errors+=("file is mandatory")
+	# else
+	# 	if [ $verbose == true ] && [ $silent == false ]; then
+	# 		printf "    ${c__fct2}file : ${c__value}${dst_dir}${nocolor}\n"
+	# 	fi
+	# fi
 	
 
 	# check if mand_errors contains errors and show them
@@ -113,7 +140,7 @@ CheckMandatoryParams() {
 		fi
 		return 1
 	else
-		if [ $silent == false ]; then
+		if [ $verbose == true ]; then
 			printf "${c__success}Mandatory parameters OK${nocolor}
 			\n"
 		fi
@@ -132,7 +159,6 @@ StartText () {
 HowToUse() {
 	printf "❓ ${blue}How to use${gray}\n"
 	printf "${whiitebold}This script is used to configure iptables for entire system.${nocolor}\n"
-
 	printf "\n"
 	printf "${commandName} --verbose --silent${nocolor}\n"
 	printf "\n"
@@ -146,6 +172,10 @@ HowToUse() {
 }
 
 EndOfScript() {
+	if [[ $silent == true ]]; then
+		return 0
+	fi
+
 	printf "\n${c__fctName}${commandName}${nocolor} - ${c__fct2}Resume${nocolor}\n"
 
 	# show error messages if there are
@@ -184,11 +214,35 @@ EndOfScript() {
 			printf "${c__fctAction}✅ No notice${nocolor}\n"
 		fi
 	fi
+}
 
-	if [[ $silent == false ]]; then
-		printf "👋 ${blue}Bye bye${nocolor} 👋\n"
+PrintFilePath() {
+	printf "${c__fctAction}$(dirname "$1")/${c__fct2}$(basename "$1")${nocolor}"
+}
+
+#####################
+## INSTALL FUNCTION
+#####################
+InstallFail2ban() {
+	# check if fail2ban is installed
+	printf "${c__fctName}Installing fail2ban${nocolor}\n"
+	if ! command -v fail2ban > /dev/null; then
+		apt-get install fail2ban -y
+		local test=$?
+		if [[ $test -ne 0 ]]; then
+			printf "${c__error}❌ fail2ban installation failed${nocolor}\n"
+			return 1
+		else
+			printf "${c__fctAction}✅ fail2ban installed${nocolor}\n"
+			return 0
+		fi
+	else
+		printf "${c__notice}✅ fail2ban already installed${nocolor}\n"
+		g_notices+=("fail2ban already installed")
+		return 0
 	fi
 }
+
 
 ##################
 ## MAIN FUNCTION
@@ -198,7 +252,7 @@ Main() {
 		printf "${c__fctName}Manage file${nocolor}\n"
 	fi
 
-	traverse_files "$src_dir" "$dst_dir"
+	browse_and_copy "$src_dir" "$dst_dir"
 	local test=$?
 	if [[ $test -ne 0 ]]; then
 		return 1
@@ -209,138 +263,106 @@ Main() {
 ###################
 ## FILE FUNCTIONS
 ###################
-save_file() {
-    local source_file="$1"
-    local destination_file="$source_file.bak"
+# create a function that browse all files in src_dir directory and subdirectories
+# if file exists in dst_dir, create a backup of dst_dir file and copy src_dir file to dst_dir
+# if file does not exists in dst_dir, copy src_dir file to dst_dir
+function browse_and_copy() {
+	local src_dir="$1"
+	local dst_dir="$2"
 
-	echo "source_file : $source_file"
-	echo "destination_file : $destination_file"
-
-	# check if source file exists
-	if [ ! -f "$source_file" ]; then
-		return 1
-	fi
-
-	# check if destination file does not exists
-	if [ -f "$destination_file" ]; then
-		g_notices+=("${c__notice}SAVE - Destination file ${c__fct2}$(basename -- $destination_file) ${c__notice}already exists${nocolor}")
-		return 2
-	fi
-
-    printf "${c__value2}Saving $(PrintFilePath $destination_file) ...${nocolor}"
-    mv "$source_file" "$destination_file"
-	local test=$?
-
-    # Check save
-    if [ $test -eq 0 ]; then
-        printf " ${c__success}OK${nocolor}\n"
-		return 0
-    else
-        printf "${c__error}KO${nocolor}\n"
-		g_errors+=("${c__error}SAVE - Error when saving $source_file${nocolor}")
-		return 1
-    fi
-}
-copy_file() {
-    local source_file="$1"
-    local destination_dir="$2"
-
-	# check if source file exists
-	if [ ! -f "$source_file" ]; then
-		printf "${c__error}COPY - Source file ${c__fct2}$(basename -- $source_file) ${c__error}does not exist"
-		g_errors+=("${c__error}COPY - Source file ${c__fct2}$(basename -- $source_file) ${c__error}does not exist")
-		return 1
-	fi
-
-	# check if destination dir exists
-	if [ ! -d "$destination_dir" ]; then
-		printf "${c__error}COPY - Destination dir ${c__fct2}$(basename $destination_dir) ${c__error}does not exist"
-		g_errors+=("${c__error}COPY - Destination dir ${c__fct2}$(basename $destination_dir) ${c__error}does not exist")
-		return 1
-	else
-		# get basename of source file
-		local source_basename=$(basename "$source_file")
-		local destination_file="$destination_dir/$source_basename"
-		save_file "$destination_file"
-		local test=$?
-		if [[ $test -eq 1 ]]; then
-			return 1
-		elif [[ $test -eq 2 ]]; then
-			printf "${c__warning}saved file ${c__fct2}$(basename $destination_file).bak${c__warning} already exists${nocolor}\n"
-			# return 2
-		fi
-	fi
-
-    printf "${c__value}Copying ${c__fct2}$(PrintFilePath $source_file)${c__fctAction} ...${nocolor}"
-    cp "$source_file" "$destination_dir"
-	local test=$?
-
-    # Check copy
-    if [ $test -eq 0 ]; then
-        printf " ${c__success}OK${nocolor}\n"
-		return 0
-    else
-        printf "${c__error}KO${nocolor}\n"
-		g_errors+=("${c__error}COPY - Error when copying ${c__fct2}$(PrintFilePath $source_file)${c__error} to ${c__fct2}$(PrintFilePath $destination_dir)${nocolor}")
-		return 1
-    fi
-}
-
-traverse_files() {
-    local source_dir="$1"
-    local destination_dir="$2"
-
-	# check if source directory exists
-	if [ ! -d "$source_dir" ]; then
-		g_errors+=("${c__error}SCAN - Source directory $(PrintFilePath $source_dir) does not exist${nocolor}")
-		return 1
-	fi
-
-	if [[ ! -d "$destination_dir" ]]; then
-		g_errors+=("${c__error}SCAN - Destination directory $(PrintFilePath $destination_dir) does not exist${nocolor}")
-		return 1
-	fi
+	# Iterate over files and directories in the source directory
+	for file in "$src_dir"/*; do
+		if [ -f "$file" ]; then  # If the item is a file
+			local file_name=$(basename "$file")
+			local dst_file="$dst_dir/$file_name"
+			
+			printf "${c__fctAction}Managing ${c__fct2}$file_name${nocolor}\n"
 
 
-	local isErrors=false
+			if [ -f "$dst_file" ]; then  # If the file exists in the destination directory
+			    # Create a backup of the destination file
+			    local backup_file="$dst_file.bak"
 
-    for file in "$source_dir"/*; do
-        if [ -f "$file" ]; then
-			printf "${c__fctAction}Processing ${c__fct2}$(basename "$file")${nocolor}\n"
+				# check if backup_file exists
+				if [ -f "$backup_file" ]; then
+					if [[ $verbose == true ]]; then
+						printf "${c__notice}Backup file ${c__fct2}$file_name.bak ${c__notice}already exists${c__fct2}. Skip backup${nocolor}\n"
+					fi
+					# continue
+					# create a backup file with a timestamp
+					local s_backup_file=$backup_file
+					local timestamp=$(date +%s)
+					backup_file="$dst_file.$timestamp.bak"
 
-			copy_file "$file" "$destination_dir"
-			local test=$?
-			if [[ $test -eq 1 ]]; then
-				g_errors+=("${c__error}SCAN - Error when copying $(PrintFilePath $file) ${c__error}to $(PrintFilePath $destination_dir)")
-				isErrors=true
+					g_notices+=("${c__notice}Backup file ${c__fct2}$s_backup_file ${c__notice}already exists.\n${c__fct2}New name : ${c__value}$file_name.$timestamp.bak${nocolor}")
+				fi
+
+				printf "${c__warning}"
+			    cp "$dst_file" "$backup_file"
+				local test_save=$?
+				printf "${nocolor}"
+				if [[ $test_save -ne 0 ]]; then
+					if [[ $verbose == true ]]; then
+						printf "${c__error}Error when saving ${c__fct2}$(basename $backup_file)${c__fct2}${nocolor}\n"
+					fi
+					g_errors+=("${c__error}Error when saving ${c__fct2}$(basename $backup_file)${nocolor}")
+					continue
+				else
+			    	printf "${c__success}Backup OK : ${c__value}$(PrintFilePath $backup_file)${nocolor}\n"
+				fi
+
+			    # Copy the source file to the destination directory
+				printf "${c__warning}"
+			    cp "$file" "$dst_dir"
+				local test_copy=$?
+				printf "${nocolor}"
+				if [[ $test_copy -ne 0 ]]; then
+					if [[ $verbose == true ]]; then
+						printf "${c__error}Error when copying ${c__fct2}$file_name${c__fctAction}. Skip${nocolor}\n"
+					fi
+					g_errors+=("${c__error}Error when copying ${c__fct2}$file_name${c__fctAction}. Skip${nocolor}")
+					continue
+				else
+			    	printf "${c__success}copy OK : ${c__value}$file_name ${c__fct2}to ${c__value2}$dst_dir${nocolor}\n"
+				fi
+			else  # If the file doesn't exist in the destination directory
+			    # Copy the source file to the destination directory
+				printf "${c__warning}"
+			    cp "$file" "$dst_dir"
+				local test_copy=$?
+				printf "${nocolor}"
+				if [[ $test_copy -ne 0 ]]; then
+					if [[ $verbose == true ]]; then
+						printf "${c__error}Error when copying ${c__fct2}$file_name${c__fctAction}. Skip${nocolor}\n"
+					fi
+					g_errors+=("${c__error}Error when copying ${c__fct2}$file_name${c__fctAction}. Skip${nocolor}")
+					continue
+				else
+					printf "${c__success}copy OK : ${c__value}$file_name ${c__fct2}to ${c__value2}$dst_dir${nocolor}\n"
+				fi
 			fi
-		elif [ -d "$file" ]; then
-			# get basename of file
-			local basename=$(basename "$file")
-			traverse_files "$file" "${destination_dir}/$basename"
-		else
-			g_warnings+=("${c__error}SCAN - Unknown file type for ${c__fct2}$file${nocolor}")
-			isErrors=true
-			break
+			
+		elif [ -d "$file" ]; then  # If the item is a directory
+			local sub_src_dir="$file"
+			local sub_dst_dir="$dst_dir/$(basename "$file")"
+
+			# Recursively call the function to browse the subdirectory
+			browse_and_copy "$sub_src_dir" "$sub_dst_dir"
 		fi
-    done
-
-	if [[ $isErrors == true ]]; then
-		return 1
-	else
-		return 0
-	fi
+	done
 }
 
-PrintFilePath() {
-	printf "${c__fctAction}$(dirname "$1")/${c__fct2}$(basename "$1")${nocolor}"
-}
 
 ## ------------------------------------------------------------------------------------------------------------------------------------ ##
 
 # Récupération des paramètres en utilisant getopts
 while [[ $# -gt 0 ]]; do
 	case $1 in
+		-d | --dst-dir)
+			shift
+			dst_dir=$1
+			echo "dst_dir : |$dst_dir|"
+			;;
 		--verbose)
 			verbose=true
 			# shift
@@ -369,11 +391,6 @@ if [ $? -eq 1 ]; then
 	exit 1
 fi
 
-CheckCommands
-if [ $? -eq 1 ]; then
-	exit 1
-fi
-
 if [[ "$silent" == false ]]; then
 	StartText
 fi
@@ -383,15 +400,28 @@ if [ $? -eq 1 ]; then
 	exit 1
 fi
 
+CheckCommands
+test=$?
+if [ $test -eq 1 ]; then
+	exit 1
+elif [ $test -eq 2 ]; then
+	InstallFail2ban
+	test2=$?
+	if [[ $test2 -ne 0 ]]; then
+		exit 1
+	fi
+fi
 
 
 Main
 
 
-
 EndOfScript
-if [[ ${#g_errors[@]} -gt 0 ]]; then
+if [ ${#g_errors[@]} -gt 0 ] || [ ${#g_warnings[@]} -gt 0 ]; then
 	exit 1
 else
+	if [[ $silent == false ]]; then
+		printf "👋 ${blue}Bye bye${nocolor} 👋\n"
+	fi
 	exit 0
 fi
