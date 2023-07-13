@@ -24,14 +24,11 @@ sshd: 10.10.200.0/24 : ALLOW
 ```
 
 ## Docs
-Install with `apt install openssh-server`
+Install an `ssh` server with `apt install openssh-server`
 
-Disable Root User Logins
-```sh
-useradd -m username
-passwd username
-usermod -aG sudo username
-```
+SSH main configuration file : `/etc/ssh/sshd_config`
+
+Disable Root login
 ```sh
 PermitRootLogin no 
 ```
@@ -67,7 +64,7 @@ Connecting With an SSH Key
 ```sh
 ssh-keygen
 ```
-IP Restrictions for SSH Connections
+IP Restrictions for SSH Connections (in `etc/hosts.allow` file)
 ```sh
 sshd: 10.10.200.0/24 : ALLOW
 ```
