@@ -1,6 +1,6 @@
-# Script deb-install
+# ⭐ deb-install ⭐
 
-## Overview
+## 👀 Overview
 
 `deb-install` script will read content of `prox.conf` file to launch configuration scripts for :
 - system (with `apt-get` updates and upgrade)
@@ -10,16 +10,19 @@
 - fail2ban (copy basic protection files from [files_to_copy](../scripts/files_to_copy) directory)
 - If system is a proxmox system, disable enterprise messages
 
-## How to use ?
+## 📚 How to use ?
+without speficy a configuration file, the script will use the default conf file present at script root
 ```sh
 bash deb-install 
 ```
-
+OR, with a specific conf file
 ```sh
 bash deb-install -f "path/to/file/prox.conf"
 ```
 
 ## prox.conf
+
+**prox.conf** file must exists in order to execute the main script `deb-install`. Here is an explanation of the parameters it contains
 
 ### [GLOBAL]
 

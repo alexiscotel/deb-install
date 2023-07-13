@@ -358,11 +358,6 @@ function browse_and_copy() {
 # Récupération des paramètres en utilisant getopts
 while [[ $# -gt 0 ]]; do
 	case $1 in
-		-d | --dst-dir)
-			shift
-			dst_dir=$1
-			echo "dst_dir : |$dst_dir|"
-			;;
 		--verbose)
 			verbose=true
 			# shift

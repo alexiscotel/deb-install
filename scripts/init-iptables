@@ -609,7 +609,7 @@ HowToUse() {
 	printf "   DROP rules are inserts BEFORE ACCEPT rules.${nocolor}\n"
 
 	printf "\n"
-	printf "${commandName} -p 22 -s "192.168.0.1/24,172.0.0.1/24" -S "10.10.10.1/24,10.10.72.0/16" --icmp --drop-ssh --verbose --slient${nocolor}\n"
+	printf "${commandName} -p 22 -s \"192.168.0.1/24,172.0.0.1/24\" -S \"10.10.10.1/24,10.10.72.0/16\" --icmp --drop-ssh --verbose --slient${nocolor}\n"
 	printf "\n"
 	printf "${whiitebold}Parameters :${gray}\n"
 	printf "    -p  --ssh-port   : SSH port\n"
