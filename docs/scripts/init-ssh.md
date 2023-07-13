@@ -17,15 +17,15 @@ bash init-ssh -p 2222 -n 192.168.0.1/24 -u username1,sshuser@ip:port -g group1,g
 ## 🚦 Parameters
 
 ```
-    -p  --ssh-port     : SSH port
-    -n  --network-host : Network host
+-p  --ssh-port     : SSH port
+-n  --network-host : Network host
 
-    -u  --allow-users  : Allowed users to connect through SSH
-    -g  --allow-groups : Allowed groups to connect through SSH
-    -U  --deny-users   : Denied users to connect through SSH
-    -G  --deny-groups  : Denied groups to connect through SSH
+-u  --allow-users  : Allowed users to connect through SSH
+-g  --allow-groups : Allowed groups to connect through SSH
+-U  --deny-users   : Denied users to connect through SSH
+-G  --deny-groups  : Denied groups to connect through SSH
 
-	-f  --file         : SSH config file (default : "/etc/ssh/sshd_config")
+-f  --file         : SSH config file (default : "/etc/ssh/sshd_config")
 ```
 
 - `ssh-port` : define the SSH port used for the system

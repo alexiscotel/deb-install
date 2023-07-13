@@ -8,7 +8,7 @@ the script will concat `network_host` and `bastion_ip` into `ssh_allowed_ips` ar
 ## 📚 How to use ?
 
 ```sh
-bash init-iptables -p 22 -s "192.168.0.1/24,172.0.0.1/24" -S "10.10.10.1/24,10.10.72.0/16" --icmp --drop-ssh --verbose --slient
+bash init-iptables -p 22 -s "192.168.0.1/24,172.0.0.1/24" -S "10.10.10.1/24,10.10.72.0/16" --icmp --drop-ssh --verbose --silent
 ```
 
 ## 🚦 Parameters
