@@ -264,6 +264,9 @@ UpdateSystem() {
 	apt upgrade
 	apt dist-upgrade
 
+	# install ssh
+	# apt install openssh-server
+	# install some packages
 	apt install htop gzip
 
 	printf "\n${c__success}System initialization end.${nocolor}\n"
@@ -409,7 +412,7 @@ StartText () {
 HowToUse() {
 	printf "❓ ${blue}How to use${gray}\n"
 	printf "\n"
-	printf "${commandName} --ssh-port 2222 --network-host 192.168.0.1/24 --bastion 192.168.0.1 --users-groups group1:username1,username2/group2:username3,username4,username5 --ssh-allow-users username1,sshuser@ip:port --ssh-allow-groups group1,group2 --ssh-deny-users username3,sshuser@ip:port --ssh-deny-groups group4${nocolor}\n"
+	printf "${commandName} -f \"prox.conf\"${nocolor}\n"
 	printf "\n"
 	printf "${whiitebold}Parameters :${gray}\n"
 	printf "\n"

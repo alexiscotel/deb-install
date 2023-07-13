@@ -77,10 +77,10 @@ isScriptInError=false
 ###############
 ## CHECK ROOT
 ###############
-if [ "$EUID" -ne 0 ]; then
-	printf "${c__error}Please run this script as root.${nocolor}\n"
-	exit 1
-fi
+# if [ "$EUID" -ne 0 ]; then
+# 	printf "${c__error}Please run this script as root.${nocolor}\n"
+# 	exit 1
+# fi
 
 
 ##########################################
@@ -92,6 +92,58 @@ function join_by {
     printf %s "$f" "${@/#/$d}"
   fi
 }
+
+#######################
+## CHECKERS FUNCTIONS
+#######################
+
+checkIfSSHRunning() {
+	# check if ssh is installed and running
+	if [ $silent == false ]; then
+		printf "${c__fctName}Checking if SSH is installed and running ...${nocolor}\n"
+	fi
+
+	if [ -z "$(which ssh)" ]; then
+		printf "${c__error}SSH is not installed.${nocolor}\n"
+		g_errors+=("SSH is not installed")
+		isScriptInError=true
+		return 1
+	else
+		if [ $verbose == true ]; then
+			printf "${c__success}SSH is installed.${nocolor}\n"
+		fi
+
+		# check if ssh running
+		if [ -z "$(ps -ef | grep sshd | grep -v grep)" ]; then
+			printf "${c__error}SSH is not running.${nocolor}\n"
+			g_errors+=("SSH is not running")
+			return 2
+		else
+			if [ $silent == false ]; then
+				printf "    ${c__fct2}SSH is running.${nocolor}\n"
+			fi
+		fi
+	fi
+}
+InstallSSH() {
+	if [ $silent == false ]; then
+		printf "${c__fctName}Installing SSH ...${nocolor}\n"
+	fi
+
+	apt-get install openssh-server -y
+	local test=$?
+	if [ $test -ne 0 ]; then
+		printf "${c__error}Error while installing SSH.${nocolor}\n"
+		g_errors+=("Error while installing SSH")
+		isScriptInError=true
+	else
+		if [ $silent == false ]; then
+			printf "    ${c__fct2}SSH is installed.${nocolor}\n"
+		fi
+	fi
+}
+
+
 
 CheckIfParameters() {
 	if [ -z "$ssh_port" ] && [ -z "$network_cidr" ] && [ -z "$localhost_ip" ] && [ -z "$bastion" ] && [ "${#allowed_users[@]}" -eq 0 ] && [ "${#allowed_groups[@]}" -eq 0 ] && [ "${#denied_users[@]}" -eq 0 ] && [ "${#denied_groups[@]}" -eq 0 ] && [ $silent == false ]; then
@@ -544,112 +596,122 @@ EndOfScript() {
 
 ## ------------------------------------------------------------------------------------------------------------------------------------ ##
 
-
-
-# Récupération des paramètres en utilisant getopts
-while [[ $# -gt 0 ]]; do
-  case $1 in
-    -p | --ssh-port)
-      shift
-      ssh_port=$1
-      ;;
-    -n | --network-host)
-      shift
-      network_cidr=$1
-      ;;
-    -u | --allow-users)
-      shift
-      allowed_users=($(echo "$1" | tr ',' ' '))
-      ;;
-    -g | --allow-groups)
-      shift
-      allowed_groups=($(echo "$1" | tr ',' ' '))
-      ;;
-    -U | --deny-users)
-      shift
-      denied_users=($(echo "$1" | tr ',' ' '))
-      ;;
-    -G | --deny-groups)
-      	shift
-      	denied_groups=($(echo "$1" | tr ',' ' '))
-      	;;
-	-f | --file)
-		shift
-		sshd_config=$1
-		;;
-	--verbose)
-		shift
-		verbose=true
-		;;
-	--silent)
-		shift
-		silent=true
-		;;
-	-h | --help)
-		StartText
-		HowToUse
-		exit 0
-		;;
-	*)
-      echo "Option invalide: $1"
-      exit 1
-      ;;
-  esac
-  shift
-done
-
-CheckIfParameters
-if [ $? -eq 1 ]; then
-	StartText
-	HowToUse
-	exit 1
-fi
-
-if [[ $silent == false ]]; then
-	StartText
-fi
-
-CheckMandatoryParams
-
-
-ManageSSH
-ManageNetwork
-
-
-if [[ "${#allowed_users[@]}" -gt 0 ]]; then
-	if [ $silent == false ]; then
-		printf "${c__fctName}Checking allow users ...${nocolor}\n"
+checkIfSSHRunning
+test_running=$?
+if [ $test_running -ne 0 ]; then
+	InstallSSH
+	test_install=$?
+	if [ $test_install -ne 0 ]; then
+		printf "${c__error}❌ SSH installation failed${nocolor}\n"
+		exit 1
 	fi
-	CheckAllowUsers
-	ManageAllowUsers
-# elif [ $verbose == true ]; then
-# 	printf "${c__fctAction}no allowed users to manage${nocolor}\n"
 fi
 
 
-if [[ "${#allowed_groups[@]}" -gt 0 ]]; then
-	printf "${c__fctName}Checking allow groups ...${nocolor}\n"
-	CheckAllowGroups
-	ManageAllowGroups
-# elif [ $verbose == true ]; then
-# 	printf "${c__fctAction}no allowed groups to create${nocolor}\n"
-fi
+# # Récupération des paramètres en utilisant getopts
+# while [[ $# -gt 0 ]]; do
+#   case $1 in
+#     -p | --ssh-port)
+#       shift
+#       ssh_port=$1
+#       ;;
+#     -n | --network-host)
+#       shift
+#       network_cidr=$1
+#       ;;
+#     -u | --allow-users)
+#       shift
+#       allowed_users=($(echo "$1" | tr ',' ' '))
+#       ;;
+#     -g | --allow-groups)
+#       shift
+#       allowed_groups=($(echo "$1" | tr ',' ' '))
+#       ;;
+#     -U | --deny-users)
+#       shift
+#       denied_users=($(echo "$1" | tr ',' ' '))
+#       ;;
+#     -G | --deny-groups)
+#       	shift
+#       	denied_groups=($(echo "$1" | tr ',' ' '))
+#       	;;
+# 	-f | --file)
+# 		shift
+# 		sshd_config=$1
+# 		;;
+# 	--verbose)
+# 		shift
+# 		verbose=true
+# 		;;
+# 	--silent)
+# 		shift
+# 		silent=true
+# 		;;
+# 	-h | --help)
+# 		StartText
+# 		HowToUse
+# 		exit 0
+# 		;;
+# 	*)
+#       echo "Option invalide: $1"
+#       exit 1
+#       ;;
+#   esac
+#   shift
+# done
 
-if [[ "${#denied_users[@]}" -gt 0 ]]; then
-	printf "${c__fctName}Checking denied users ...${nocolor}\n"
-	CheckDeniedUsers
-	ManageDeniedUsers
-# elif [ $verbose == true ]; then
-# 	printf "${c__fctAction}no denied users to create${nocolor}\n"
-fi
+# CheckIfParameters
+# if [ $? -eq 1 ]; then
+# 	StartText
+# 	HowToUse
+# 	exit 1
+# fi
 
-if [[ "${#denied_groups[@]}" -gt 0 ]]; then
-	printf "${c__fctName}Checking denied groups ...${nocolor}\n"
-	CheckDeniedGroups
-	ManageDeniedGroups
-# elif [ $verbose == true ]; then
-# 	printf "${c__fctAction}no denied groups to create${nocolor}\n"
-fi
+# if [[ $silent == false ]]; then
+# 	StartText
+# fi
+
+# CheckMandatoryParams
+
+
+# ManageSSH
+# ManageNetwork
+
+
+# if [[ "${#allowed_users[@]}" -gt 0 ]]; then
+# 	if [ $silent == false ]; then
+# 		printf "${c__fctName}Checking allow users ...${nocolor}\n"
+# 	fi
+# 	CheckAllowUsers
+# 	ManageAllowUsers
+# # elif [ $verbose == true ]; then
+# # 	printf "${c__fctAction}no allowed users to manage${nocolor}\n"
+# fi
+
+
+# if [[ "${#allowed_groups[@]}" -gt 0 ]]; then
+# 	printf "${c__fctName}Checking allow groups ...${nocolor}\n"
+# 	CheckAllowGroups
+# 	ManageAllowGroups
+# # elif [ $verbose == true ]; then
+# # 	printf "${c__fctAction}no allowed groups to create${nocolor}\n"
+# fi
+
+# if [[ "${#denied_users[@]}" -gt 0 ]]; then
+# 	printf "${c__fctName}Checking denied users ...${nocolor}\n"
+# 	CheckDeniedUsers
+# 	ManageDeniedUsers
+# # elif [ $verbose == true ]; then
+# # 	printf "${c__fctAction}no denied users to create${nocolor}\n"
+# fi
+
+# if [[ "${#denied_groups[@]}" -gt 0 ]]; then
+# 	printf "${c__fctName}Checking denied groups ...${nocolor}\n"
+# 	CheckDeniedGroups
+# 	ManageDeniedGroups
+# # elif [ $verbose == true ]; then
+# # 	printf "${c__fctAction}no denied groups to create${nocolor}\n"
+# fi
 
 
 EndOfScript

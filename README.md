@@ -2,24 +2,23 @@
 
 ## 📚 Docs
 
-- [Installation guide](installation.md)
-- [Manage Users](docs/manage-users.md)
+- [Manage Users in Proxmox GUI](docs/manage-proxmox-users.md)
+- [SSH](docs/ssh.md)
 - Firewalls :
   - [Proxmox Firewall](docs/firewall/proxmox-firewall.md)
   - [Debian iptables](docs/firewall/debian-iptables.md)
 - [Backup](docs/protection.md)
-- [protection](docs/protection.md)
 - Scripts :
-  - [install-proxmox](scripts/install-proxmox)
+  - [deb-install](scripts/deb-install)
   - [init-users](scripts/init-users)
-  - [secure-ssh](scripts/secure-ssh)
+  - [init-ssh](scripts/init-ssh)
   - [update-config](scripts/update-config)
-  - [iptables-proxmox](scripts/iptables-proxmox)
-  - [iptables-vm](scripts/iptables-vm)
+  - [init-iptables](scripts/init-iptables)
 
 
 ## Overview
 proxmox debian IP : `10.10.200.219`
+
 ### VMs
 - **webmox-debian** : `10.10.200.201`. web server using docker to serve :
     - traefik, a reverse proxy (like nginx)
