@@ -18,3 +18,19 @@
   - [Proxmox Firewall](docs/firewall/proxmox-firewall.md)
   - [Debian iptables](docs/firewall/debian-iptables.md)
 - [Backup](docs/backup.md)
+
+## 🚧 TODO
+
+- backup :
+  - [ ] Learn how to
+  - [ ] Sync backup with NAS
+  - [ ] Create script
+  - [ ] Edit docs
+- Create a deploy package that contains :
+  - deb-install
+  - prettier-shell
+  - prettier-motd
+- Tests :
+  - [ ] in simple debian VM
+  - [ ] in a proxmox VM
+  - [ ] in the proxmox system

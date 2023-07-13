@@ -15,8 +15,7 @@ bash init-users --create -g group1:username1,sshuser@ip:port/group2:username3,us
 ```
 -u  --users  : users to create (separated by a comma)
 -g  --groups : groups to create (separated by a comma)
--a  --add    : formated string to set users in groups
-			format: group1=username1,username2;group2=username3,username1
+-a  --add    : formated string to set users in groups (format: group1=username1,username2;group2=username3,username1)
 ```
 
 - for `users` parameter, add usernames you want to create, separate by a comma
