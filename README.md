@@ -36,3 +36,5 @@
   - [ ] in simple debian VM
   - [ ] in a proxmox VM
   - [ ] in the proxmox system
+- Monitoring :
+  - [ ] `tail -f` logs of swaks mail queue
