@@ -33,14 +33,6 @@ c__success=$green
 
 
 ###############
-## CHECK ROOT
-###############
-# if [ "$EUID" -ne 0 ]; then
-# 	printf "${c__error}Please run this script as root.${nocolor}\n"
-# 	exit 1
-# fi
-
-###############
 ## VARIABLES
 ###############
 commandPath=$0
@@ -62,6 +54,15 @@ dst_dir="/etc/fail2ban"
 verbose=false
 silent=false
 # dst_dir=""
+
+
+###############
+## CHECK ROOT
+###############
+# if [ "$EUID" -ne 0 ]; then
+# 	printf "${c__error}Please run this script as root.${nocolor}\n"
+# 	exit 1
+# fi
 
 
 ########################

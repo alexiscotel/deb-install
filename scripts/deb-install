@@ -66,9 +66,14 @@ drop_ssh=false
 # [NETWORK]
 network_host=""
 bastion_ip=""
+# [SWAKS]
+smtp_port=""
+smtp_ip=""
+smtp_name=""
+smtp_username=""
+smtp_password=""
 
-# . "$confFile"
-## - VARIABLES
+
 
 ## PARAMETERS
 commandPath=$0
@@ -173,10 +178,18 @@ DisplayConfig() {
 	else
 		printf " ${c__notice}inactive${nocolor}\n"
 	fi
+	# printf "\n"
+
+	printf "${c__fct2}[SWAKS]${nocolor}"
+	if [ "$init_swaks" = true ]; then
+		printf " ${c__success}active${nocolor}\n"
+	else
+		printf " ${c__notice}inactive${nocolor}\n"
+	fi
 	printf "\n"
 
 
-	if [ "$proxmox" = true ] || [ "$init_users" = true ] || [ "$init_ssh" = true ] || [ "$init_iptables" = true ] || [ "$init_iptables_vm" = true ] || [ "$init_fail2ban" = true ]; then
+	if [ "$proxmox" = true ] || [ "$init_users" = true ] || [ "$init_ssh" = true ] || [ "$init_iptables" = true ] || [ "$init_iptables_vm" = true ] || [ "$init_fail2ban" = true ] || [ "$init_swaks" = true ]; then
 		printf "${c__fctName}Initialisation required for${nocolor}\n"
 
 	fi
@@ -199,6 +212,9 @@ DisplayConfig() {
 	fi
 	if [ "$init_fail2ban" = true ]; then
 		printf " - ${c__fct2}fail2ban${nocolor}\n"
+	fi
+	if [ "$init_swaks" = true ]; then
+		printf " - ${c__fct2}swaks${nocolor}\n"
 	fi
 	# printf "\n"
 	
@@ -395,6 +411,26 @@ InitFail2ban() {
 	return 0
 }
 
+InitSwaks() {
+	printf "${c__fctName}swaks initialization${nocolor}"
+	if [ $init_fail2ban == true ]; then
+		printf "\n"
+
+		bash init-swaks --smtp-port "$smtp_port" --smtp-ip "$smtp_ip" --smtp-name "$smtp_name" --username "$smtp_username" --password "$smtp_password" --verbose --silent
+		local test=$?
+		if [ $test -eq 1 ]; then
+			printf "${c__error}swaks initialization failed${nocolor}\n"
+			return 1
+		fi
+
+		printf "${c__success}swaks initialization end.${nocolor}\n"
+	else
+		printf " ${c__cancel}pass${nocolor}\n"
+	fi
+	printf "\n"
+	return 0
+}
+
 
 ######################
 ## DISPLAY FUNCTIONS
@@ -464,42 +500,66 @@ Main(){
 	fi	
 	## < DISABLE ENTERPRISE MESSAGES
 
-	## > UPDATE SYSTEM
-	UpdateSystem
-	## < UDPATE SYSTEM
+	# ## > UPDATE SYSTEM
+	# UpdateSystem
+	# ## < UDPATE SYSTEM
 
-	## > USERS INITIALIZATION
-	InitUsers
-	if [ $? -eq 1 ]; then
-		# printf "${c__error}Users initialization failed${nocolor}\n"
-		return 1
+	# ## > USERS INITIALIZATION
+	if [[ $init_users == true ]]; then
+		InitUsers
+		if [ $? -eq 1 ]; then
+			return 1
+		fi
+	else
+		printf "${c__fctAction}No Users initialization required${nocolor}\n"
 	fi
-	## < USERS INITIALIZATION
+	# ## < USERS INITIALIZATION
 
-	## > SSH CONFIG
-	InitSSH
-	if [ $? -eq 1 ]; then
-		# printf "${c__error}SSH initialization failed${nocolor}\n"
-		return 1
+	# ## > SSH CONFIG
+	if [[ $init_ssh == true ]]; then
+		InitSSH
+		if [ $? -eq 1 ]; then
+			return 1
+		fi
+	else
+		printf "${c__fctAction}No SSH initialization required${nocolor}\n"
 	fi
-	## < SSH CONFIG
+	# ## < SSH CONFIG
 
-	## > IPTABLES CONFIG
-	InitIptables
-	if [ $? -eq 1 ]; then
-		printf "${c__error}Iptables initialization failed${nocolor}\n"
-		return 1
+	# ## > IPTABLES CONFIG
+	if [[ $init_iptables == true ]]; then
+		# InitIptables
+		if [ $? -eq 1 ]; then
+			return 1
+		fi
+	else
+		printf "${c__fctAction}No iptables initialization required${nocolor}\n"
 	fi
-	## < IPTABLES CONFIG
+	# ## < IPTABLES CONFIG
 
 
-	## > FAIL2BAN CONFIG
-	InitFail2ban
-	if [ $? -eq 1 ]; then
-		printf "${c__error}Fail2ban initialization failed${nocolor}\n"
-		return 1
+	# ## > FAIL2BAN CONFIG
+	if [[ $init_fail2ban == true ]]; then
+		InitFail2ban
+		if [ $? -eq 1 ]; then
+			return 1
+		fi
+	else
+		printf "${c__fctAction}No Fail2ban initialization required${nocolor}\n"
 	fi
-	## < FAIL2BAN CONFIG
+	# ## < FAIL2BAN CONFIG
+
+	## > SWAKS CONFIG
+	if [[ $init_swaks == true ]]; then
+		InitSwaks
+		if [ $? -eq 1 ]; then
+			printf "${c__error}Swaks initialization failed${nocolor}\n"
+			return 1
+		fi
+	else
+		printf "${c__fctAction}No Swaks initialization required${nocolor}\n"
+	fi
+	## < SWAKS CONFIG
 }
 
 

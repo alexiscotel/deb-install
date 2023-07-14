@@ -8,6 +8,7 @@
 - [update-config](docs/scripts/update-config.md)
 - [init-iptables](docs/scripts/init-iptables.md)
 - [init-fail2ban](docs/scripts/init-fail2ban.md)
+- [init-swaks](docs/scripts/init-swaks.md)
 
 
 ## 📚 Docs

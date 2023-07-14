@@ -33,14 +33,6 @@ c__success=$green
 
 
 ###############
-## CHECK ROOT
-###############
-if [ "$EUID" -ne 0 ]; then
-	printf "${c__error}Please run this script as root.${nocolor}\n"
-	exit 1
-fi
-
-###############
 ## VARIABLES
 ###############
 commandPath=$0
@@ -69,6 +61,15 @@ ssh_denied_ips_str=
 declare -a ssh_denied_ips=()
 drop_ssh=false
 active_icmp=false
+
+
+###############
+## CHECK ROOT
+###############
+if [ "$EUID" -ne 0 ]; then
+	printf "${c__error}Please run this script as root.${nocolor}\n"
+	exit 1
+fi
 
 
 ########################
