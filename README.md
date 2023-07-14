@@ -21,6 +21,7 @@
 
 ## 🚧 TODO
 
+- Integrate notify system (Create doc repository)
 - backup :
   - [ ] Learn how to
   - [ ] Sync backup with NAS
